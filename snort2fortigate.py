@@ -1,34 +1,4 @@
 #!/usr/bin/env python
-# This script is being provided by the copyright holders under the following
-# license. By obtaining, using and/or copying this work, you (the licensee)
-# agree that you have read, understood, and will comply with the following terms
-# and conditions
-#
-# Permission to copy, modify, and distribute this software and its documentation
-# with or without modification, for any purpose and without fee or royalty is
-# hereby granted, provided that you include the following on ALL copies of the
-# software and documentation or portions thereof, including modifications:
-#
-#   1. The full text of this NOTICE in a location viewable to users of the
-#      redistributed or derivative work.
-#   2. Notice of any changes or modifications to the files, including the date
-#      changes were made.
-#
-#
-# THIS SOFTWARE AND DOCUMENTATION IS PROVIDED "AS IS," AND COPYRIGHT HOLDERS
-# MAKE NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
-# LIMITED TO, WARRANTIES OF MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR
-# PURPOSE OR THAT THE USE OF THE SOFTWARE OR DOCUMENTATION WILL NOT INFRINGE ANY
-# THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.
-#
-# COPYRIGHT HOLDERS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL OR
-# CONSEQUENTIAL DAMAGES ARISING OUT OF ANY USE OF THE SOFTWARE OR DOCUMENTATION.
-#
-# Title to copyright in this software and any associated documentation will at
-# all times remain with copyright holders.
-#
-# Copyright 2015 Fortinet, Inc. All Rights Reserved.
-
 
 import os
 import sys
@@ -38,10 +8,6 @@ import re
 # Declare the globals
 Version = '2.3'
 print_err_warning = False
-input_file = None
-output_file = 'fortirules.txt'
-SnortRuleCount = 0
-FGTRuleCount = 0
 FGTRuleMaxLen = 4096
 
 pcreOpt = ['i', 's', 'm', 'x', 'A', 'E', 'G']
@@ -86,22 +52,38 @@ contextH = ['http_cookie', 'http_raw_cookie', 'http_header', 'http_raw_header']
 contextB = ['http_stat_code', 'http_stat_msg']
 contextU = ['http_method', 'http_uri', 'http_raw_uri']
 
-removeKey = lambda l, reg: reg.sub('', l)
+snortTag = ['alert', '# alert']
 
+snortSig = re.compile('''(\#\s)?alert\s+
+                            (?P<proto>[^\s]+)\s+
+                            (?P<src>[^\s]+)\s+
+                            (?P<srcport>[^\s]+)\s+
+                            (?P<dir>[^\s]+)\s+
+                            (?P<dst>[^\s]+)\s+
+                            (?P<dstport>[^\s]+)\s+
+                        \(
+                            (?P<body>.+)
+                        ;\s*\)''', re.IGNORECASE | re.VERBOSE)
+
+removeKey = lambda l, reg: reg.sub('', l)
 
 def usage():
     print sys.argv[0]
     print """
     -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     Usage: convert Snort rule into fortinet IPS signature format
-    -i <input Snort rule txt>
-    -o <output IPS rule txt>, default fortirules.txt
-    -h or --help - This Usage
+    -i <input_filename>
+        Input file containing snort rules
+        '-' will read from stdin
+    -o <output IPS rule txt>
+        Output file for foritaget rules
+        defaults to fortirules.txt
+        '-' will write to stdout
+    -h or --help - This Usage text.
     -q quiet
+        Suppresses error messages and warnings
 
     Version : %s
-	For all issues regarding the script, please email:
-	vulnwatch@fortinet.com
     -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     """ % (Version)
     sys.exit(1)
@@ -140,8 +122,8 @@ def convHeader(proto, src, srcport, Dir, dst, dstport):
     elif any(i == '$SIP_PORTS' for i in [srcport, dstport]):
         rule += ' --service SIP;'
     elif any(i == '$FTP_PORTS' for i in [srcport, dstport]):
-        rule += ' --service FTP;'		
-		
+        rule += ' --service FTP;'
+
     else:
         if ('$' not in src and src.lower() != 'any'):
             rule += ' --src_addr ' + src + ';'
@@ -193,7 +175,7 @@ def convBody(body, ref):
     (Bflag, Fflag, Hflag, Pflag, Uflag) = (False, False, False, False, False)
 
     digit = re.compile(r'-?\d+')
-    pcrefix = re.compile(r'pcre:\".*?;\s')	
+    pcrefix = re.compile(r'pcre:\".*?;\s')
     m = pcrefix.search(body)
     if m:
         body = body.replace('\\; ', '\\;\\s')
@@ -207,7 +189,7 @@ def convBody(body, ref):
 
     for s in body.split('; '):
         r = s.partition(':')
-        key = r[0].strip()	
+        key = r[0].strip()
         if key in keyDrop:
             continue
         elif key in keyNotSupport:
@@ -296,12 +278,12 @@ def convBody(body, ref):
                     debug_print('protocol name', r[2].strip())
                 return (1, rule, sid, msg)
         elif key == 'ssl_version':
-            (err, tmp) = __handle_ssl_type(rule, r[2].strip())	
+            (err, tmp) = __handle_ssl_type(rule, r[2].strip())
             if err:
                 if not print_err_warning:
                     debug_print('SSL Type', r[2].strip())
-                return (1, rule, sid, msg)	
-            rule += tmp				
+                return (1, rule, sid, msg)
+            rule += tmp
         elif key == 'uricontent':
             rule += ' --pattern ' + NormalizePattern(r[2]) + '; --context uri;'
         elif key in contextB:
@@ -377,7 +359,7 @@ def convBody(body, ref):
             Hflag = True
         elif key == 'sip_body':
             Bflag = True
-        elif key == 'threshold': 
+        elif key == 'threshold':
             rule += __handle_threshold(r[2])
         else:
             print "Error: unknown snort option '%s'" % (key)
@@ -760,7 +742,7 @@ def __handle_detection_filter(v):
     return rule
 
 def __handle_threshold(v):
-    # threshold deprecated in Snort 2.8.5+ but add compatibility for older 
+    # threshold deprecated in Snort 2.8.5+ but add compatibility for older
     # rulesets
     rule = ''
     threshold = v.strip().split(', ',1);
@@ -790,7 +772,7 @@ def __handle_ssl_type(r,v):
     if ('--service ' not in rule):
 	    tmp = '--service SSL;'
     for f in v.split(','):
-        f = f.strip()	
+        f = f.strip()
         if f == 'tls1.0':
             tmp =  tmp + ' --parsed_type TLS_V1;'
         elif f == 'tls1.1':
@@ -802,82 +784,79 @@ def __handle_ssl_type(r,v):
         elif f == 'sslv3':
             tmp = tmp + ' --parsed_type SSL_V3;'
         else:
-		    return (True, rule)		
-    return (False, tmp)		
-			
-	
-	
-# Main program starts
-if len(sys.argv) == 1:
-    usage()
+		    return (True, rule)
+    return (False, tmp)
 
-try:
-    cmd_opts = "hi:o:q"
-    opts, args = getopt.getopt(sys.argv[1:], cmd_opts, ["help"])
-except getopt.GetoptError:
-    usage()
+def main():
 
-
-for opt in opts:
-    if opt[0] == "-i":
-        input_file = opt[1]
-    elif opt[0] == "-o":
-        output_file = opt[1]
-    elif opt[0] in ("-h", "--help"):
-        usage()
-    elif opt[0] == "-q":
-        print_err_warning = True
-    else:
+    if len(sys.argv) == 1:
         usage()
 
-ifh = open_file(input_file, 'r')
-ofh = open_file(output_file, 'w')
+    try:
+        cmd_opts = "hi:o:q"
+        opts, args = getopt.getopt(sys.argv[1:], cmd_opts, ["help"])
+    except getopt.GetoptError:
+        usage()
 
-snortTag = ['alert', '# alert']
+    input_file = None
+    output_file = 'fortirules.txt'
 
-snortSig = re.compile('''(\#\s)?alert\s+
-                            (?P<proto>[^\s]+)\s+
-                            (?P<src>[^\s]+)\s+
-                            (?P<srcport>[^\s]+)\s+
-                            (?P<dir>[^\s]+)\s+
-                            (?P<dst>[^\s]+)\s+
-                            (?P<dstport>[^\s]+)\s+
-                        \(
-                            (?P<body>.+)
-                        ;\s*\)''', re.IGNORECASE | re.VERBOSE)
+    for opt in opts:
+        if opt[0] == "-i":
+            input_file = opt[1]
+        elif opt[0] == "-o":
+            output_file = opt[1]
+        elif opt[0] in ("-h", "--help"):
+            usage()
+        elif opt[0] == "-q":
+            print_err_warning = True
+        else:
+            usage()
 
+    ifh = open_file(input_file, 'r') if input_file != '-' else sys.stdin
+    ofh = open_file(output_file, 'w') if output_file != '-' else sys.stdout
+    convert(ifh, ofh)
+    if ifh != sys.stdin:
+        ifh.close()
+    if ofh != sys.stdout:
+        ofh.close()
 
-for line in ifh:
-    if any(map(line.startswith, snortTag)):
-        SnortRuleCount += 1
-        m = snortSig.match(line)
-        if m:
-            (err, fgtRule) = convHeader(m.group('proto'), m.group('src'),
-                                        m.group('srcport'), m.group('dir'),
-                                        m.group('dst'), m.group('dstport'))
-            if err:
-                continue
+def convert(ifh, ofh):
+    SnortRuleCount = 0
+    FGTRuleCount = 0
+    for line in ifh:
+        if any(map(line.startswith, snortTag)):
+            SnortRuleCount += 1
+            m = snortSig.match(line)
+            if m:
+                (err, fgtRule) = convHeader(m.group('proto'), m.group('src'),
+                                            m.group('srcport'), m.group('dir'),
+                                            m.group('dst'), m.group('dstport'))
+                if err:
+                    continue
 
-            (err, fgtRule, sid, msg) = convBody(m.group('body'), fgtRule)
+                (err, fgtRule, sid, msg) = convBody(m.group('body'), fgtRule)
 
-            if err == 0:
-                sigName = 'SID' + sid + '-' + msg.replace('"', '')
-                sigName = sigName[:64].strip().replace(' ','.')
+                if err == 0:
+                    sigName = 'SID' + sid + '-' + msg.replace('"', '')
+                    sigName = sigName[:64].strip().replace(' ','.')
 
-                fgtRule = 'F-SBID( --name "'+ sigName + '";' + fgtRule + ' )'
+                    fgtRule = 'F-SBID( --name "'+ sigName + '";' + fgtRule + ' )'
 
-                if len(fgtRule) >= FGTRuleMaxLen:
-                    print "SID %s: converted FGT rule overflows" % (sid)
+                    if len(fgtRule) >= FGTRuleMaxLen:
+                        print "SID %s: converted FGT rule overflows" % (sid)
+                    else:
+                        FGTRuleCount += 1
+                        ofh.write(fgtRule + '\n')
+                elif err == 1:
+                    if not print_err_warning:
+                        print "SID %s: snort option not support, skipped" % (sid)
                 else:
-                    FGTRuleCount += 1
-                    ofh.write(fgtRule + '\n')
-            elif err == 1:
-                if not print_err_warning:
-                    print "SID %s: snort option not support, skipped" % (sid)
-            else:
-                print "unexpected error in SID %s" % (sid)
-print "\nTotal %d from %d Snort rules are converted" \
-    % (FGTRuleCount, SnortRuleCount)
+                    print "unexpected error in SID %s" % (sid)
+    if ofh != sys.stdout:
+        print "\nTotal %d from %d Snort rules are converted" \
+            % (FGTRuleCount, SnortRuleCount)
 
-ifh.close()
-ofh.close()
+if __name__ == '__main__':
+    # Main program starts
+    main()
