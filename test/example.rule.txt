@@ -1,1 +1,0 @@
-alert icmp any any -> any any (msg:"ICMP Testing Rule"; sid:1000001; rev: 1;)
