@@ -33,6 +33,7 @@ import sys
 import re
 import argparse
 import logging
+import json
 try:
     from cStringIO import StringIO      # Python 2
 except ImportError:
@@ -49,6 +50,7 @@ disabled_snort_count = 0
 fgt_rule_count = 0
 rule_maxlen = 1024
 log_stream = StringIO()
+json_stream = StringIO()
 
 # Keeping state for Snort3 syntax
 content_seen_flag = False  # has encountered content: or pcre: in this rule
@@ -143,10 +145,25 @@ class ServicePriority:
     If there is priority set, the service option is added in __single_option_check
     """
     supported_services = {
-        'h': ' --service http;',
-        's': ' --service sip;',
-        'm': ' --service modbus;',
-        'ssl': ' --service ssl;'
+        'http': ' --service http;',
+        'sip': ' --service sip;',
+        'modbus': ' --service modbus;',
+        'ssl': ' --service ssl;',
+        'ftp': ' --service ftp;',
+        'telnet': ' --service telnet;',
+        'smtp': ' --service smtp;',
+        'ssh': ' --service ssh;',
+        'dcerpc': ' --service dcerpc;',
+        'netbios': ' --service nbss;',
+        'nntp': ' --service nntp;',
+        'sunrpc': ' --service rpc;',
+        'dns': ' --service dns;',
+        'imap': ' --service imap;',
+        'pop3': ' --service pop3;',
+        'snmp': ' --service snmp;',
+        'ldap': ' --service ldap;',
+        'radius': ' --service radius;',
+        'rtsp': ' --service rtsp;'
     }
 
     def __init__(self):
@@ -155,12 +172,18 @@ class ServicePriority:
     def set_service(self, service):
         self.service = self.supported_services.get(service)
 
+    def set_high_service(self, service):
+        self.high_service = self.supported_services.get(service)
+
     def get_service(self):
         # Either returns the --service <service_name>; or None if not set
-        return self.service
+        if self.high_service is None:
+            return self.service
+        return self.high_service
 
     def reset_service(self):
         self.service = None
+        self.high_service = None
 
 
 context_flags = ContextFlags()
@@ -172,6 +195,7 @@ open_context_flag = False
 added_context_flag = False
 context_modifier_flag = False
 bi_direction_flag = False
+force_snort_2 = False
 
 # Distinguish Snort2/3 at the end for edge case where a rule begins with file_data
 # and swaps to another context. Default parsed as Snort3 rule but cannot tell
@@ -225,7 +249,7 @@ def keyword_handler(key, value):
     rule = ''
     valid = False
     key_drop = ['msg', 'reference', 'rev', 'classtype', 'priority', 'sid', 'gid',
-                'metadata', 'fast_pattern', 'http_encode', 'service', 'rem']
+                'fast_pattern', 'http_encode', 'service', 'rem']
     unsupported_fatal = ['md5', 'sha256', 'sha512', 'so', 'soid']
     switch = {  # all other keywords that are not pcre: or content:or its suboptions
         'flowbits': _handle_flowbits,
@@ -252,7 +276,9 @@ def keyword_handler(key, value):
         'isdataat': _handle_isdataat,
         'flags': _handle_direct_trans,
         'tos': _handle_direct_trans,
-        'ttl': _handle_ttl
+        'ttl': _handle_ttl,
+        'service': _handle_service,
+        'metadata': _handle_metadata
     }
 
     direct_trans = {
@@ -340,7 +366,7 @@ def keyword_handler(key, value):
             valid = True
         elif handled_opt is None:  # This occurs with Snort3 sticky buffers, None returned
             valid = True
-        service_priority.set_service(key[0])
+        service_priority.set_service(key.split('_')[0])
     elif key in content_modifier:
         handled_opt = _handle_content_modifier(key, value)
         if handled_opt:
@@ -433,6 +459,15 @@ def _handle_context(key, context):
                 sticky_buffer_flag = True
                 return None
         else:
+            if force_snort_2:
+                # REPARSING AS SNORT 2 when beginning with file_data/pkt_data
+                context_flags.set_flag(context)
+                context_flags.set_cursor()
+                # treat this section of rule as Snort 3 since it comes before content
+                sticky_buffer_flag = True
+
+                return None
+
             # don't know what this context is doing here
             logging.warning("Syntax error at Snort option %s. Skipping" % key)
             return None
@@ -531,6 +566,7 @@ def _handle_flow(value):
             continue
         else:
             logging.warning('"flow" cannot convert "%s". Option not supported. Omitting option.' % o)
+            return None
     return pattern
 
 
@@ -1030,7 +1066,7 @@ def _handle_urilen(value):
     opts = value.split(',')
     if len(opts) > 1:
         if opts[1] == 'norm':
-            logging.warning('"urilen" cannot convert "%s". Option not supported. Omitting option.' % value)
+            logging.warning('"urilen" cannot convert "%s". "norm" option not supported. Omitting option.' % value)
             return None
     pattern = _handle_min_max_convert('data_size', value, 'uri')
     return pattern
@@ -1106,6 +1142,36 @@ def _handle_isdataat(value):
         pattern += ',%s' % opts[1]
     pattern += ';'
     return pattern
+
+
+def _handle_service(value):
+    """ Convert service -> --service <service>;  (snort3 only)  """
+    """ Syntax: service: <service_1>, <service_2>...;           """
+    """ Must override all services found.                       """
+    """ Cannot handle multiple services.                        """
+    logging.debug('inside _handle_service')
+    if ',' in value:
+        logging.warning('"service" cannot convert %s. Too many services. Omitting option.' % value)
+        return None
+    value = value.replace(' ', '')
+    service_priority.set_high_service(value)
+    return None
+
+
+def _handle_metadata(value):
+    """ Extracts service from metadata (snort 2 only)  """
+    """ Must override all services found.              """
+    """ Cannot handle multiple services.               """
+    logging.debug('inside _handle_metadata')
+    if 'service ' not in value:
+        # do not need to further parse metadata, just return None
+        return None
+    opts = re.findall(r'service ([^ ,;]+)', value)
+    if len(opts) > 1:
+        logging.warning('"service" cannot convert %s. Too many services. Omitting option.' % opts)
+        return None
+    service_priority.set_high_service(opts[0])
+    return None
 
 
 def _handle_ttl(value):
@@ -1415,14 +1481,13 @@ def __optimize_post_processing(rule, fgt_sig):
                     # Fix by re-parsing as Snort2
                     logging.debug('Abnormal rule found. Reparsing as Snort2')
                     global content_seen_flag
-                    global open_context_flag
-                    global added_context_flag
+                    global force_snort_2
                     __reset_flags()
                     # Force to parse as Snort2
                     content_seen_flag = True
-                    open_context_flag = True
-                    added_context_flag = True
+                    force_snort_2 = True
                     (valid, fgt_sig) = process_snort(rule)
+                    force_snort_2 = False
         # Remove extra --context if there are 2 for a pattern
         # - caused by file_data/pkt_data in Snort 2 syntax in the following case:
         #   content:"insideuri"; http_uri; file_data; content:"insidefile"; content:"insidebody"; nocase; http_raw_body;
@@ -1446,28 +1511,45 @@ def __optimize_post_processing(rule, fgt_sig):
     return fgt_sig
 
 
-def output_json(input):
-    #   TODO
-    # Output in a json format
-    # return output
-    return
+def output_json(outfile, fgt_count, snort_count):
+    """ JSON has been written to json_stream iteratively
+    Load as JSON and write out to file """
+    out_json = {}
+    stats = {}
+    stats.update({'success':fgt_count})
+    stats.update({'failure':snort_count-fgt_count})
+    out_json.update({'statistics':stats})
+    results = json.loads(json_stream.getvalue()[:-3]+']') # Remove trailing , from stream to close properly
+    out_json.update({'results':results})
+    json.dump(out_json, outfile, ensure_ascii=False, indent=4, sort_keys=True)
 
 
-def write_sig(sig, out_file, gui, j):
+def write_sig(rule, sig, out_file, gui, j):
     try:
         if not gui:
             sig = sig.replace('"', '\\"')
-
         if not j:
-            out_file.write(sig + '\n')
+            if sig:
+                out_file.write(sig + '\n')
         else:
-            #TODO
-            pass
-
+            current_sig_log = log_stream.getvalue()
+            log_stream.truncate(0)
+            # Write to stream first, encoded in JSON formatting
+            if sig:
+                success = True
+            else:
+                success = False
+            rule_obj = {}
+            rule_obj.update({"original":rule})
+            rule_obj.update({"converted":sig})
+            rule_obj.update({"warnings_errors":current_sig_log})
+            rule_obj.update({"success": success})
+            json_obj = json.dumps(rule_obj)
+            json_stream.write(json_obj + " , \n")
 
         return True
     except IOError:
-        logging.error("I/O ERROR - Failed writing signature to output file.")
+        logging.error("I/O ERROR - Failed writing to output file.")
         return False
 
 
@@ -1489,17 +1571,23 @@ def open_files(infile, outfile):
 
 
 def __set_logging(debug=False, quiet=False, j=False):
-    format = logging.Formatter('%(levelname)s:%(message)s')
-    if j: # Add additional logging handler to write warnings/errors to stream
-        string_handler = logging.StreamHandler(stream=log_stream)
-        string_handler.setFormatter(format)
+    format = logging.Formatter('%(levelname)s: %(message)s')
+    log_level = logging.WARNING
     if debug:  # debug option overrides quiet
         logging.basicConfig(filename='Snort2Fortigate.log', filemode='w', format='%(levelname)s: %(message)s',
                             level=logging.DEBUG)
     elif quiet:
-        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.CRITICAL)
+        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.CRITICAL)
+        log_level = logging.CRITICAL
     else:
-        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING)
+        logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.WARNING)
+
+    if j: # Add additional logging handler to write warnings/errors to stream
+        string_handler = logging.StreamHandler(stream=log_stream)
+        string_handler.setFormatter(format)
+        string_handler.setLevel(log_level)
+        logging.getLogger().addHandler(string_handler)
+        json_stream.write('[')
 
 def test_convert(snort_rule):
     """ Loop for testing purpose only. """
@@ -1509,9 +1597,7 @@ def test_convert(snort_rule):
         (valid, fgt_sig) = process_snort(m.group('rule'))
         fgt_sig = __optimize_post_processing(m.group('rule'), fgt_sig)
     __reset_flags()
-
     return valid, fgt_sig
-
 
 def main():
     """ Main loop """
@@ -1543,6 +1629,7 @@ def main():
         m = snort_tag.match(line)
         if m:
             logging.debug("Snort sig %d" % snort_count)
+            rule = m.group('rule')
 
             if args.ignore_disabled:
                 if len(m.group('disabled')) > 0:
@@ -1551,18 +1638,22 @@ def main():
                     continue
 
             snort_count += 1
-            (valid, fgt_sig) = process_snort(m.group('rule'))
-            fgt_sig = __optimize_post_processing(m.group('rule'), fgt_sig)
+            (valid, fgt_sig) = process_snort(rule)
+            fgt_sig = __optimize_post_processing(rule, fgt_sig)
 
             logging.debug(fgt_sig)
             __reset_flags()
 
             if not valid:
+                write_sig(rule,'', out_f, args.gui, args.json)
                 continue
             else:
-                ok = write_sig(fgt_sig, out_f, args.gui, args.json)
+                ok = write_sig(rule,fgt_sig, out_f, args.gui, args.json)
                 if ok:
                     fgt_rule_count += 1
+
+    if args.json:
+        output_json(out_f, fgt_rule_count, snort_count)
 
     # Final print and cleanup.
     print "\n%s:\nTotal %d from %d Snort rules are converted" \
@@ -1573,6 +1664,8 @@ def main():
         print ''
     in_f.close()
     out_f.close()
+    json_stream.close()
+    log_stream.close()
 
 
 if __name__ == "__main__":
