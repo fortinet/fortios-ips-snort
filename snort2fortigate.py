@@ -1402,10 +1402,11 @@ def process_snort(rule):
     snort_sig = re.compile('(?P<header>.+?)\((?P<body>.+);\s*\)')
     m = snort_sig.match(rule)
     fgt_sig = ''
+    sig_name = ''
     if m:
         (valid, fgt_sig_head) = _handle_header(m.group('header'))
         if not valid:
-            return (False, fgt_sig)
+            return (False, fgt_sig, sig_name)
         if alert_file_flag:
             # Snort3 - add --context file; to all content/pcre found
             context_flags.set_flag('F')
@@ -1413,14 +1414,14 @@ def process_snort(rule):
         sig_name = __get_sig_name(m.group('body'))
         (valid, fgt_sig_body) = _handle_body(m.group('body'))
         if not valid:
-            return (False, fgt_sig)
+            return (False, fgt_sig, sig_name)
 
         fgt_sig = __single_option_check('F-SBID( --name "' + sig_name + '";' + fgt_sig_head + fgt_sig_body + ' )')
 
-        return (True, fgt_sig)
+        return (True, fgt_sig, sig_name)
     else:
         logging.error('Error parsing Snort rule format.')
-        return (False, fgt_sig)
+        return (False, fgt_sig, sig_name)
 
 
 def __single_option_check(rule):
@@ -1486,7 +1487,7 @@ def __optimize_post_processing(rule, fgt_sig):
                     # Force to parse as Snort2
                     content_seen_flag = True
                     force_snort_2 = True
-                    (valid, fgt_sig) = process_snort(rule)
+                    (valid, fgt_sig, sig_name) = process_snort(rule)
                     force_snort_2 = False
         # Remove extra --context if there are 2 for a pattern
         # - caused by file_data/pkt_data in Snort 2 syntax in the following case:
@@ -1524,7 +1525,7 @@ def output_json(outfile, fgt_count, snort_count):
     json.dump(out_json, outfile, ensure_ascii=False, indent=4, sort_keys=True)
 
 
-def write_sig(rule, sig, out_file, gui, j):
+def write_sig(rule, sig, sig_name, out_file, gui, j):
     try:
         if not gui:
             sig = sig.replace('"', '\\"')
@@ -1539,10 +1540,20 @@ def write_sig(rule, sig, out_file, gui, j):
                 success = True
             else:
                 success = False
+            messages = []
+            log_msgs = current_sig_log.rstrip('\n ').split('\n')
+            if log_msgs != ['']:
+                for msg in log_msgs:
+                    msg_obj = {}
+                    (level, c, message) = msg.partition(':')
+                    msg_obj.update({"level":level})
+                    msg_obj.update({"message":message})
+                    messages.append(msg_obj)
             rule_obj = {}
             rule_obj.update({"original":rule})
             rule_obj.update({"converted":sig})
-            rule_obj.update({"warnings_errors":current_sig_log})
+            rule_obj.update({"name":sig_name})
+            rule_obj.update({"messages":messages})
             rule_obj.update({"success": success})
             json_obj = json.dumps(rule_obj)
             json_stream.write(json_obj + " , \n")
@@ -1571,7 +1582,7 @@ def open_files(infile, outfile):
 
 
 def __set_logging(debug=False, quiet=False, j=False):
-    format = logging.Formatter('%(levelname)s: %(message)s')
+    format = logging.Formatter('%(levelname)s:%(message)s')
     log_level = logging.WARNING
     if debug:  # debug option overrides quiet
         logging.basicConfig(filename='Snort2Fortigate.log', filemode='w', format='%(levelname)s: %(message)s',
@@ -1594,7 +1605,7 @@ def test_convert(snort_rule):
     snort_tag = re.compile('\s*(?P<disabled>#?)\s*alert\s+(?P<rule>.*)')
     m = snort_tag.match(snort_rule)
     if m:
-        (valid, fgt_sig) = process_snort(m.group('rule'))
+        (valid, fgt_sig, sig_name) = process_snort(m.group('rule'))
         fgt_sig = __optimize_post_processing(m.group('rule'), fgt_sig)
     __reset_flags()
     return valid, fgt_sig
@@ -1638,17 +1649,21 @@ def main():
                     continue
 
             snort_count += 1
-            (valid, fgt_sig) = process_snort(rule)
+            (valid, fgt_sig, sig_name) = process_snort(rule)
             fgt_sig = __optimize_post_processing(rule, fgt_sig)
 
             logging.debug(fgt_sig)
             __reset_flags()
 
+            if len(fgt_sig) > rule_maxlen:
+                logging.error("Signature max length 1024 exceeded.")
+                valid = False
+
             if not valid:
-                write_sig(rule,'', out_f, args.gui, args.json)
+                write_sig(rule,'', '', out_f, args.gui, args.json)
                 continue
             else:
-                ok = write_sig(rule,fgt_sig, out_f, args.gui, args.json)
+                ok = write_sig(rule,fgt_sig, sig_name, out_f, args.gui, args.json)
                 if ok:
                     fgt_rule_count += 1
 
