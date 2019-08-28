@@ -34,8 +34,9 @@ import re
 import argparse
 import logging
 import json
+
 try:
-    from cStringIO import StringIO      # Python 2
+    from cStringIO import StringIO  # Python 2
 except ImportError:
     from io import StringIO
 
@@ -104,7 +105,7 @@ class ContextFlags:
 
     def reset(self):
         self.context = None
-        self.context_cursor =  False
+        self.context_cursor = False
 
     def get_flag(self):
         return self.context
@@ -133,7 +134,6 @@ class ContextFlags:
             return ' --context packet_origin;'
         else:
             return ' --context packet;'
-
 
 
 class ServicePriority:
@@ -202,6 +202,7 @@ force_snort_2 = False
 # until we see whether we end in a context option (S2) or a content option (S3)
 # set to last seen key (content/pcre/file_data/http_uri/http_raw_...etc)
 last_seen_option = ''
+
 
 def usage():
     return """
@@ -524,7 +525,7 @@ def _handle_content(value):
                 if content_mod:
                     pattern += content_mod
                 else:
-                    return None # omit the content modifier if it failed.
+                    return None  # omit the content modifier if it failed.
             else:  # unknown? skip (eg. fast_pattern)
                 continue
     else:
@@ -705,8 +706,9 @@ def _handle_pcre(value):
 
         # If multiple different contexts are added from above.. remove
         if len(rule_mod.split('--context')) > 2:
-            logging.warning('Cannot support multiple Snort HTTP modifiers in PCRE expression "%s%s". Omitting context' % (
-                expr, mods))
+            logging.warning(
+                'Cannot support multiple Snort HTTP modifiers in PCRE expression "%s%s". Omitting context' % (
+                    expr, mods))
             rule_mod = ''
 
         # Remaining in mod_list is either a regular Perl/PCRE modifier
@@ -1131,7 +1133,8 @@ def _handle_isdataat(value):
             logging.error('"isdataat" cannot convert negative check. Option not supported.')
             return False
         if ret_val[1] == 'reg':
-            logging.error('"isdataat" cannot convert negative check. Registers cannot be used for "--data_size" option.')
+            logging.error(
+                '"isdataat" cannot convert negative check. Registers cannot be used for "--data_size" option.')
             return False
         if ret_val[0] == 1:
             return ' --data size 0;'
@@ -1201,35 +1204,40 @@ def _handle_header_opt_list(opt_list, opt_type):
     known_policy_vars = []
     if opt_type == 'addr':
         known_policy_vars = ['$DNS_SERVERS', '$TELNET_SERVERS', '$HTTP_SERVERS', '$SMTP_SERVERS']
-        brackets = '[]'
     elif opt_type == 'port':
         known_policy_vars = ['$HTTP_PORTS', '$FTP_PORTS', '$SIP_PORTS', '$SMTP_PORTS']
-        brackets = '{}'
 
     if opt_list == 'any':
         return (-1, -1)
+
+    # if only one element in opt_list, remove brackets
+    if ',' not in opt_list:
+        opt_list = opt_list.replace('[', '')
+        opt_list = opt_list.replace(']', '')
+    elif opt_type == 'port':
+        opt_list = opt_list.replace(']', '}')
+        opt_list = opt_list.replace('[', '{')
+
     opt_policy_vars = re.findall(r'(\$\w+)', opt_list)
 
-    if len(opt_policy_vars) == 1:
+    # If no policy vars found, just return as is and remove brackets if necessary
+    if len(opt_policy_vars) == 0:
+        return (opt_list, -1)
+
+    # If only one element in opt_list and it is a policy var
+    if ',' not in opt_list and len(opt_policy_vars) == 1:
         if opt_policy_vars[0] in known_policy_vars:
             f_services.append(opt_policy_vars[0].split('_')[0][1:].lower())
         return (-1, f_services)
 
     for policy_var in opt_policy_vars:
-        opt_list = re.sub('(,\\%s|\\%s,)' % (policy_var, policy_var), '', opt_list)
-        if policy_var in known_policy_vars:
-            f_services.append(policy_var.split("_")[0][1:].lower())
+            opt_list = re.sub('(,\\%s|\\%s,)' % (policy_var, policy_var), '', opt_list)
+            if policy_var in known_policy_vars:
+                f_services.append(policy_var.split("_")[0][1:].lower())
 
-    if opt_type == 'port':
-        opt_list = opt_list.replace(']', '}')
-        opt_list = opt_list.replace('[', '{')
-
-    if ',' not in opt_list:
-        opt_list = opt_list.replace(brackets[0], '')
-        opt_list = opt_list.replace(brackets[1], '')
-
-    if opt_list == brackets:
+    if opt_list in set(['[]', '{}']):
         return (-1, f_services)
+
     return (opt_list, f_services)
 
 
@@ -1280,11 +1288,12 @@ def _handle_header(header):
         else:
             (parsed_opt, services) = _handle_header_opt_list(entry, key[i].split("_")[1])
             if parsed_opt != -1:
-                if i == 2 or i == 5:
-                    if '{' in parsed_opt:
-                        f_header['tcp.%s in' % key[i]] = parsed_opt
-                        continue
-                f_header[key[i]] = parsed_opt
+                if '{' in parsed_opt:
+                    logging.warning('Cannot convert list of ports. Option not supported.')
+                    # tcp.dst_port/src_port is not supported for now. Uncomment after it is supported.
+                    # f_header['tcp.%s in' % key[i]] = parsed_opt
+                else:
+                    f_header[key[i]] = parsed_opt
             if services != -1:
                 f_header['service'] += services
 
@@ -1442,7 +1451,7 @@ def __single_option_check(rule):
         rule = pcre_del_option.sub('', rule)
         single_options.remove('service')
         pcre_add_service = re.compile('(.*\;)\s*(\s+\))')
-        rule = pcre_add_service.sub('\\1'+serv+'\\2',rule)
+        rule = pcre_add_service.sub('\\1' + serv + '\\2', rule)
 
     for option in single_options:
         pcre_match_option = re.compile('\s--' + option + '\s([a-z]+)\;')
@@ -1471,13 +1480,13 @@ def __optimize_post_processing(rule, fgt_sig):
     """ Further optimize for 'parsed_type' IPS keyword (equivalent of http_method with
     content:"GET" or "POST") """
     if 'file_data;' or 'pkt_data;' in rule:
-        if last_seen_option not in ['content','pcre','file_data','pkt_data','uricontent']:
+        if last_seen_option not in ['content', 'pcre', 'file_data', 'pkt_data', 'uricontent']:
             # the remainder being last seen means it was a Snort2 rule
             # if --context file or packet is the first context in rule, and another context is seen:
             first_context = re.compile('\s--context\s([a-z_]+)\;')
             m_context = first_context.search(fgt_sig)
             if m_context:
-                if m_context.group(1) in ['file','packet']:
+                if m_context.group(1) in ['file', 'packet']:
                     # First context was a file_data; or pkt_data; and this was Snort2, incorrectly parsed
                     # Fix by re-parsing as Snort2
                     logging.debug('Abnormal rule found. Reparsing as Snort2')
@@ -1496,18 +1505,19 @@ def __optimize_post_processing(rule, fgt_sig):
         multiple_contexts = re.compile('(\s--context\s(?:file|packet)\;)((?!--pattern|--pcre).)*(--context\s)')
         m_contexts = multiple_contexts.findall(fgt_sig)
         if m_contexts:
-            m_contexts_replace = re.compile('(.*)(\s--context\s(?:file|packet)\;)((?:(?!--pattern|--pcre).)*)(--context\s.*)')
-            fgt_sig = m_contexts_replace.sub('\\1\\3\\4',fgt_sig)
+            m_contexts_replace = re.compile(
+                '(.*)(\s--context\s(?:file|packet)\;)((?:(?!--pattern|--pcre).)*)(--context\s.*)')
+            fgt_sig = m_contexts_replace.sub('\\1\\3\\4', fgt_sig)
 
-    if 'http_method;' in rule: # Sanity check in case someone wanted "GET" in actual URI
+    if 'http_method;' in rule:  # Sanity check in case someone wanted "GET" in actual URI
         parsed_type = re.compile('(\s--pattern\s\"(?:GET|POST)\"\; --context uri;)(?!\s*--(?:distance|within))')
         method = parsed_type.findall(fgt_sig)
-        if len(method) == 1: # only change sig when only one occurrence is found, just in case
+        if len(method) == 1:  # only change sig when only one occurrence is found, just in case
             if 'GET' in method[0]:
                 http_type = 'GET'
             else:
                 http_type = 'POST'
-            fgt_sig = parsed_type.sub(' --parsed_type HTTP_'+http_type+';' ,fgt_sig, count=1)
+            fgt_sig = parsed_type.sub(' --parsed_type HTTP_' + http_type + ';', fgt_sig, count=1)
 
     return fgt_sig
 
@@ -1517,11 +1527,11 @@ def output_json(outfile, fgt_count, snort_count):
     Load as JSON and write out to file """
     out_json = {}
     stats = {}
-    stats.update({'success':fgt_count})
-    stats.update({'failure':snort_count-fgt_count})
-    out_json.update({'statistics':stats})
-    results = json.loads(json_stream.getvalue()[:-3]+']') # Remove trailing , from stream to close properly
-    out_json.update({'results':results})
+    stats.update({'success': fgt_count})
+    stats.update({'failure': snort_count - fgt_count})
+    out_json.update({'statistics': stats})
+    results = json.loads(json_stream.getvalue()[:-3] + ']')  # Remove trailing , from stream to close properly
+    out_json.update({'results': results})
     json.dump(out_json, outfile, ensure_ascii=False, indent=4, sort_keys=True)
 
 
@@ -1546,14 +1556,14 @@ def write_sig(rule, sig, sig_name, out_file, gui, j):
                 for msg in log_msgs:
                     msg_obj = {}
                     (level, c, message) = msg.partition(':')
-                    msg_obj.update({"level":level})
-                    msg_obj.update({"message":message})
+                    msg_obj.update({"level": level})
+                    msg_obj.update({"message": message})
                     messages.append(msg_obj)
             rule_obj = {}
-            rule_obj.update({"original":rule})
-            rule_obj.update({"converted":sig})
-            rule_obj.update({"name":sig_name})
-            rule_obj.update({"messages":messages})
+            rule_obj.update({"original": rule})
+            rule_obj.update({"converted": sig})
+            rule_obj.update({"name": sig_name})
+            rule_obj.update({"messages": messages})
             rule_obj.update({"success": success})
             json_obj = json.dumps(rule_obj)
             json_stream.write(json_obj + " , \n")
@@ -1593,12 +1603,13 @@ def __set_logging(debug=False, quiet=False, j=False):
     else:
         logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.WARNING)
 
-    if j: # Add additional logging handler to write warnings/errors to stream
+    if j:  # Add additional logging handler to write warnings/errors to stream
         string_handler = logging.StreamHandler(stream=log_stream)
         string_handler.setFormatter(format)
         string_handler.setLevel(log_level)
         logging.getLogger().addHandler(string_handler)
         json_stream.write('[')
+
 
 def test_convert(snort_rule):
     """ Loop for testing purpose only. """
@@ -1609,6 +1620,7 @@ def test_convert(snort_rule):
         fgt_sig = __optimize_post_processing(m.group('rule'), fgt_sig)
     __reset_flags()
     return valid, fgt_sig
+
 
 def main():
     """ Main loop """
@@ -1660,10 +1672,10 @@ def main():
                 valid = False
 
             if not valid:
-                write_sig(rule,'', '', out_f, args.gui, args.json)
+                write_sig(rule, '', '', out_f, args.gui, args.json)
                 continue
             else:
-                ok = write_sig(rule,fgt_sig, sig_name, out_f, args.gui, args.json)
+                ok = write_sig(rule, fgt_sig, sig_name, out_f, args.gui, args.json)
                 if ok:
                     fgt_rule_count += 1
 
