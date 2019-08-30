@@ -507,28 +507,29 @@ def _handle_content(value):
     content_seen_flag = True
     pattern = __check_and_add_context_packet()
     open_context_flag = True
+    added_context = False
 
     pattern += ' --pattern ' + __normalize_pattern(value.strip())
-    s3_opts = pattern.rsplit('",', 1)
-    if len(s3_opts) > 1:
-        # Snort3 content suboptions found
-        # currently parses distance/within/offset/depth/nocase
-        pattern = s3_opts[0] + '";'
-        for s in s3_opts[1].split(','):
-            subkey = s.strip().split(' ')
-            if subkey[0] in ['nocase', 'offset', 'depth', 'distance', 'within']:
-                if len(subkey) < 2:
-                    subkey_val = ''
-                else:
-                    subkey_val = subkey[1]
-                content_mod = _handle_content_modifier(subkey[0], subkey_val)
-                if content_mod:
-                    pattern += content_mod
-                else:
-                    return None  # omit the content modifier if it failed.
-            else:  # unknown? skip (eg. fast_pattern)
-                continue
-    else:
+    if pattern[-1] != '"': # options after end of pattern string
+        s3_opts = pattern.rsplit('",', 1)
+        if len(s3_opts) > 1:
+            # Snort3 content suboptions found
+            # currently parses distance/within/offset/depth/nocase
+            pattern = s3_opts[0] + '";'
+            for s in s3_opts[1].split(','):
+                subkey = s.strip().split(' ')
+                if subkey[0] in ['nocase', 'offset', 'depth', 'distance', 'within']:
+                    if len(subkey) < 2:
+                        subkey_val = ''
+                    else:
+                        subkey_val = subkey[1]
+                    content_mod = _handle_content_modifier(subkey[0], subkey_val)
+                    if content_mod:
+                        pattern += content_mod
+                        added_context = True
+                else:  # unknown? skip (eg. fast_pattern)
+                    continue
+    if not added_context:
         pattern += ';'
 
     if sticky_buffer_flag:
@@ -631,6 +632,7 @@ def _handle_pcre(value):
     logging.debug('inside _handle_pcre')
     global content_seen_flag
     global open_context_flag
+    global added_context_flag
     content_seen_flag = True  # Since Snort3 uses buffers for PCRE too
     rule = __check_and_add_context_packet()
     open_context_flag = True
@@ -666,22 +668,27 @@ def _handle_pcre(value):
                 # update list to delete this modifier since we are done with it.
                 # Same context ones are deleted at the same time to not duplicate.
                 mod_list = [x for x in mod_list if x not in mod_uri]
+                added_context_flag = True
                 del_mod = True
             elif mod in mod_header:
                 rule_mod += ' --context header;'
                 mod_list = [x for x in mod_list if x not in mod_header]
+                added_context_flag = True
                 del_mod = True
             elif mod in mod_body:
                 rule_mod += ' --context body;'
                 mod_list = [x for x in mod_list if x not in mod_body]
+                added_context_flag = True
                 del_mod = True
             elif mod in mod_banner:
                 rule_mod += ' --context banner;'
                 mod_list = [x for x in mod_list if x not in mod_banner]
+                added_context_flag = True
                 del_mod = True
             elif mod in mod_packet:
                 rule_mod += ' --context packet;'
                 mod_list = [x for x in mod_list if x not in mod_packet]
+                added_context_flag = True
                 del_mod = True
             elif mod in mod_distance:
                 rule_mod += ' --distance 0;'
@@ -1479,7 +1486,7 @@ def __optimize_post_processing(rule, fgt_sig):
     rules. See file_data test cases in Unit Test. """
     """ Further optimize for 'parsed_type' IPS keyword (equivalent of http_method with
     content:"GET" or "POST") """
-    if 'file_data;' or 'pkt_data;' in rule:
+    if 'file_data;' in rule or 'pkt_data;' in rule:
         if last_seen_option not in ['content', 'pcre', 'file_data', 'pkt_data', 'uricontent']:
             # the remainder being last seen means it was a Snort2 rule
             # if --context file or packet is the first context in rule, and another context is seen:
