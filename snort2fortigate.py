@@ -34,7 +34,7 @@ import re
 import argparse
 import logging
 import json
-
+import time
 
 try:
     from cStringIO import StringIO  # Python 2
@@ -500,6 +500,7 @@ def _handle_content(value):
             # Snort3 content suboptions found
             # currently parses distance/within/offset/depth/nocase
             pattern = s3_opts[0] + '";'
+            added_context = True
             for s in s3_opts[1].split(','):
                 subkey = s.strip().split(' ')
                 if subkey[0] in ['nocase', 'offset', 'depth', 'distance', 'within']:
@@ -510,7 +511,6 @@ def _handle_content(value):
                     content_mod = _handle_content_modifier(subkey[0], subkey_val)
                     if content_mod:
                         pattern += content_mod
-                        added_context = True
                 else:  # unknown? skip (eg. fast_pattern)
                     continue
     if not added_context:
@@ -1643,7 +1643,6 @@ def main():
     #global context_flags
     #global keywordhandler
     #global regs
-	
 
     parser = argparse.ArgumentParser(description=usage(), formatter_class=argparse.RawTextHelpFormatter, add_help=True)
     parser.add_argument('-i', '--input', dest='input', required=True)
@@ -1715,7 +1714,6 @@ def main():
     out_f.close()
     json_stream.close()
     log_stream.close()
-
 
 if __name__ == "__main__":
     main()

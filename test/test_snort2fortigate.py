@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.dirname(script_dir))
 from snort2fortigate import test_convert
 
 class TestSnort2Fortigate(unittest.TestCase):
-    def testConvert(self):
+		
+    def testConvert(self):	
         ifh = open(os.path.join(script_dir, 'snort_custom.rules'), 'r')
         assertfh = open(os.path.join(script_dir, 'assert_fgt.rules'), 'r')
         in_f = ifh.read().splitlines()
