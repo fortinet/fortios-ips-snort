@@ -34,7 +34,7 @@ import re
 import argparse
 import logging
 import json
-import time
+
 
 try:
     from cStringIO import StringIO  # Python 2
@@ -79,7 +79,7 @@ keywordhandler = None
 
 
 
-#Declare all the constants related to common Snort keywords 
+#Declare all the constants related to common Snort keywords
 
 
 #map all the different keywords related to context for easy conversion later
@@ -98,7 +98,7 @@ context_file, context_raw_packet): keyword_dict.update(i)
 #keyword that we can omit without any impact on the signature detection
 key_drop = {'msg', 'reference', 'rev', 'classtype', 'priority', 'sid', 'gid',
             'fast_pattern', 'http_encode', 'service', 'rem'}
-			
+
 unsupported_fatal = {'md5', 'sha256', 'sha512', 'so', 'soid'}
 
 direct_trans = {
@@ -119,7 +119,7 @@ direct_trans = {
 
 content_modifier = {'depth', 'offset', 'distance', 'within', 'nocase'}
 content_pattern = {'content', 'pcre', 'uricontent'}
-	
+
 class Registers:
     #This class holds the mapping for Snort variables to registers
 
@@ -148,13 +148,13 @@ class Registers:
 
 
 class ContextFlags:
-    #This class holds context flags for encountering Snort modifiers 
-    #and sticky buffers and returns the appropriate IPS pattern      
-    #context. (body [B], file [F], header [H], uri [U], packet [P],  
-    #banner [R], packet_origin [O] )                                 
+    #This class holds context flags for encountering Snort modifiers
+    #and sticky buffers and returns the appropriate IPS pattern
+    #context. (body [B], file [F], header [H], uri [U], packet [P],
+    #banner [R], packet_origin [O] )
     #context_cursor holds boolean for encountering cursors file_data
     #or pkt_data which require special handling to distinguish in
-    #Snort2 vs Snort3. True only if cursor is in a Snort2 rule 
+    #Snort2 vs Snort3. True only if cursor is in a Snort2 rule
 
     def __init__(self):
         self.context = None
@@ -204,7 +204,7 @@ class ServicePriority:
     #header.
     #eg. encountering sip_body, we should set --service sip;
     #If there is priority set, the service option is added in __single_option_check
-    
+
     supported_services = {
         'http': ' --service http;',
         'sip': ' --service sip;',
@@ -246,9 +246,9 @@ class ServicePriority:
         self.service = None
         self.high_service = None
 
-class FunctionSwitch: 
-    #To avoid rebuilding the dictionary for the function calls each time a keyword is examined, 
-    #this class will create a map per instance to optimize the code. 
+class FunctionSwitch:
+    #To avoid rebuilding the dictionary for the function calls each time a keyword is examined,
+    #this class will create a map per instance to optimize the code.
 
     def __init__(self):
 	    self.__map = {  # all other keywords that are not pcre: or content:or its suboptions
@@ -280,10 +280,10 @@ class FunctionSwitch:
         'service': _handle_service,
         'metadata': _handle_metadata
     }
-	
-    #From key, call appropriate function to handle from switch. 
+
+    #From key, call appropriate function to handle from switch.
     def get_handler(self, key):
-	    return self.__map.get(key)			
+	    return self.__map.get(key)
 
 def keyword_handler(key, value):
     #Snort option keys are organized in the following groups:
@@ -303,13 +303,13 @@ def keyword_handler(key, value):
     #    - is None if we are just omitting but continuing with rest of
     #      rule
     #
-    #Return (validity_boolean,converted_rule) 
+    #Return (validity_boolean,converted_rule)
     global open_context_flag
     global last_seen_option
     rule = ''
     valid = False
 
-	
+
     ##########################################
     # Begin parsing keyword:
 
@@ -369,7 +369,7 @@ def keyword_handler(key, value):
 
 def _handle_content_modifier(key, value):
     #Content modifiers: nocase, offset, depth, distance, within.
-    #Supports registers from byte_extract.                      
+    #Supports registers from byte_extract.
     logging.debug('inside _handle_content_modifier')
     global context_modifier_flag
     value = value.strip()
@@ -402,8 +402,8 @@ def _handle_content_modifier(key, value):
 
 
 def _handle_context(key, context):
-    #Handle receiving a context related keyword      
-    #Snort 2 and 3 syntax results in different state 
+    #Handle receiving a context related keyword
+    #Snort 2 and 3 syntax results in different state
     logging.debug('inside _handle_context with context %s' % context)
     global sticky_buffer_flag
     global added_context_flag
@@ -465,9 +465,9 @@ def __normalize_pattern(p):
 
 
 def __check_and_add_context_packet():
-    #Snort2: having written --pattern or --pcre without context yet 
-    #while having distance/within with ,context; requiring a        
-    #--context packet; at the end.                                  
+    #Snort2: having written --pattern or --pcre without context yet
+    #while having distance/within with ,context; requiring a
+    #--context packet; at the end.
     pattern = ''
     if open_context_flag:
         if context_modifier_flag and not added_context_flag:
@@ -476,13 +476,13 @@ def __check_and_add_context_packet():
 
 
 def _handle_content(value):
-    #When receiving content value, it can be Snort2 or Snort3 style 
-    #Snort2: content:"/Home/"; depth:6; would only give pattern and 
+    #When receiving content value, it can be Snort2 or Snort3 style
+    #Snort2: content:"/Home/"; depth:6; would only give pattern and
     #require handling content modifier 'depth' in keyword_handler as
-    #its own key.                                                   
-    #Snort3: content:"/Home/",depth 6; provides the modifiers as    
-    #suboptions and can be added immediately. Context is also known 
-    #for Snort3 rules to be added based on global flags.            
+    #its own key.
+    #Snort3: content:"/Home/",depth 6; provides the modifiers as
+    #suboptions and can be added immediately. Context is also known
+    #for Snort3 rules to be added based on global flags.
     logging.debug('inside _handle_content')
     global content_seen_flag
     global open_context_flag
@@ -524,13 +524,13 @@ def _handle_content(value):
 
 
 def _handle_flow(value):
-    #Converts option flow -> --flow dir;                                  
-    #Snort flow syntax: [(established|not_established|stateless)]         
+    #Converts option flow -> --flow dir;
+    #Snort flow syntax: [(established|not_established|stateless)]
     #                   [,(to_client|to_server| from_client| from_server)]
-    #                   [,(no_stream|only stream)]                        
-    #                   [,(no_frag|only_frag)]                            
-    #FGT engine does not differentiate between established/not/stateless  
-    #FGT engine does not support no_stream/only_stream/no_frag/only_frag  
+    #                   [,(no_stream|only stream)]
+    #                   [,(no_frag|only_frag)]
+    #FGT engine does not differentiate between established/not/stateless
+    #FGT engine does not support no_stream/only_stream/no_frag/only_frag
     logging.debug('inside _handle_flow')
     global bi_direction_flag
     if bi_direction_flag:
@@ -539,12 +539,16 @@ def _handle_flow(value):
     opts = value.replace(' ', '').split(',')
     pattern = ''
 
+    from_server = ['to_client', 'from_server']
+    from_client = ['to_server', 'from_client']
+    established = ['established', 'not_established', 'stateless']
+
     for o in opts:
-        if o in ['to_client', 'from_server']:
+        if o in from_server:
             pattern = "".join((pattern, ' --flow from_server;'))
-        elif o in ['to_server', 'from_client']:
+        elif o in from_client:
             pattern = "".join((pattern, ' --flow from_client;'))
-        elif o in ['established', 'not_established', 'stateless']:
+        elif o in established:
             if len(opts) == 1:
                 logging.warning('"flow" cannot convert "%s". Option not supported. Omitting option.' % o)
                 return None
@@ -556,9 +560,9 @@ def _handle_flow(value):
 
 
 def _handle_flowbits(value):
-    #Converts option flowbits -> --tag test,set              
-    #flowbits:<cmd>,<tag_name(s)>,<group_name>;              
-    #FGT keyword does not accept group_name option           
+    #Converts option flowbits -> --tag test,set
+    #flowbits:<cmd>,<tag_name(s)>,<group_name>;
+    #FGT keyword does not accept group_name option
     logging.debug('inside _handle_flowbits')
     tag_keys = {
         'set': 'set',
@@ -611,7 +615,7 @@ def _handle_pcre(value):
     #Meanwhile, Snort3 removes this in favour of sticky buffers.
     #Similar to content option.
     #Check sticky_buffer_flag and add context if it already is known.
-    
+
     logging.debug('inside _handle_pcre')
     global content_seen_flag
     global open_context_flag
@@ -718,9 +722,9 @@ def _handle_pcre(value):
 
 
 def _handle_byte_jump(value):
-    #Converts byte_jump option to --byte_jump                      
-    #Syntax: byte_jump: <bytes>, <offset> [,modifiers]             
-    #Do not support keywords: dce, bitmask, from_end, post_offset  
+    #Converts byte_jump option to --byte_jump
+    #Syntax: byte_jump: <bytes>, <offset> [,modifiers]
+    #Do not support keywords: dce, bitmask, from_end, post_offset
     logging.debug('inside _handle_byte_jump')
     frm_beg_flag = False
     opts = [x.strip() for x in value.split(',')]
@@ -752,7 +756,7 @@ def _handle_byte_jump(value):
 
 
 def __get_val(value):
-    #Converts string variable from byte_test to int or retrieves  
+    #Converts string variable from byte_test to int or retrieves
     #register from variable name. returns tuple (value, data_type)
     if '0x' == value[:2]:
         val = int(value, 16)
@@ -771,10 +775,10 @@ def __get_val(value):
 
 def __arith(value, op):
     #Performs arithmetic operations on the extracted values
-    #from byte_test. Also performs overflow check. returns 
-    #False if overflow occurs.                             
-    #value = (value, type). type can be int/hex/register   
-    #op = +/-. May add more in the future.                 
+    #from byte_test. Also performs overflow check. returns
+    #False if overflow occurs.
+    #value = (value, type). type can be int/hex/register
+    #op = +/-. May add more in the future.
     if value[1] == 'reg':
         return value[0] + op + '1'
 
@@ -794,11 +798,11 @@ def __arith(value, op):
 
 
 def _handle_byte_test(value):
-    #Converts byte_test to -> --byte_test                           
-    #Syntax: byte_test <bytes>,<op>,<value>,<offset>[,modifiers]    
-    #1. Do not support operators: !&, !^                            
-    #2. Snort allows byte test of 1-10 bytes. FGT only allows 1,2,4 
-    #3. Do not support keywords: bitmask, dce                       
+    #Converts byte_test to -> --byte_test
+    #Syntax: byte_test <bytes>,<op>,<value>,<offset>[,modifiers]
+    #1. Do not support operators: !&, !^
+    #2. Snort allows byte test of 1-10 bytes. FGT only allows 1,2,4
+    #3. Do not support keywords: bitmask, dce
     logging.debug('inside _handle_byte_test')
 
     opts = [x.strip() for x in value.split(',')]
@@ -870,10 +874,10 @@ def _handle_byte_test(value):
 
 
 def _handle_byte_extract(value):
-    #Converts byte_extract option to --extract          
-    #byte_extract: <bytes>, <offset>, <name>, [options] 
-    #Do not support keywords: dce, bitmask, multiplier  
-    #                         align                      
+    #Converts byte_extract option to --extract
+    #byte_extract: <bytes>, <offset>, <name>, [options]
+    #Do not support keywords: dce, bitmask, multiplier
+    #                         align
     logging.debug('inside _handle_byte_extract')
     opts = [x.strip() for x in value.split(',')]
     pattern = ' --extract %s,%s,' % (opts[0], opts[1])
@@ -901,7 +905,7 @@ def _handle_byte_extract(value):
 
 
 def _handle_ip_proto(value):
-    #Convert ip_proto -> --protocol <protocol>;            
+    #Convert ip_proto -> --protocol <protocol>;
     #If ip_proto contains operator, use ip[offset] instead.
     logging.debug('inside _handle_ip_proto')
     ip_protocols = {
@@ -950,8 +954,8 @@ def _handle_ip_proto(value):
 
 
 def _handle_ssl_version(value):
-    #Convert ssl_version -> --parsed_type <ssl_version>. 
-    #One rule can have multiple --parsed_type options.   
+    #Convert ssl_version -> --parsed_type <ssl_version>.
+    #One rule can have multiple --parsed_type options.
     logging.debug('inside _handle_ssl_version')
     service_priority.set_service('ssl')
     pattern = ''
@@ -960,7 +964,7 @@ def _handle_ssl_version(value):
     for o in opts:
         o = o.strip()
         try:
-		    pattern = "".join((' --parsed_type ', ssl_ver.get(o), ';'))			
+		    pattern = "".join((' --parsed_type ', ssl_ver.get(o), ';'))
         except:
             logging.warning('"ssl_version" cannot convert "%s". SSL Version unknown. Omitting option.' % o)
             continue
@@ -974,7 +978,7 @@ def _handle_uri_content(value):
     #Snort 3). uricontent is like content:"hdjsd"; http_uri; and modifiers
     #like offset and distance can still be applied
     #eg. uricontent:"hdjsd"; offset:4;
-    
+
     logging.debug('inside _handle_uri_content')
     global content_seen_flag
     global open_context_flag
@@ -991,8 +995,8 @@ def _handle_uri_content(value):
 
 def _handle_bufferlen(value):
     #We only handle the case where bufferlen is part of a sticky buffer.
-    #Currently only supports bufferlen for uri, ie. the equivalent of   
-    #urilen.                                                            
+    #Currently only supports bufferlen for uri, ie. the equivalent of
+    #urilen.
     logging.debug('inside _handle_bufferlen')
     uri_bufferlen = ''
     if sticky_buffer_flag:
@@ -1008,8 +1012,8 @@ def _handle_bufferlen(value):
 
 
 def _handle_min_max_convert(key, value, opt=None):
-    #Converts options where it has the <> conversion.         
-    #Assumes num1<=>num2 is equivalent to '<=num2 and >=num1' 
+    #Converts options where it has the <> conversion.
+    #Assumes num1<=>num2 is equivalent to '<=num2 and >=num1'
     logging.debug('inside _handle_min_max_convert')
     pattern = ''
     value = value.replace(' ', '')
@@ -1046,7 +1050,7 @@ def _handle_min_max_convert(key, value, opt=None):
 
 def _handle_urilen(value):
     #Converts urilen -> --data_size <condition>,uri;
-    #Only handles raw uri, not norm option.         
+    #Only handles raw uri, not norm option.
     logging.debug('inside _handle_urilen')
     opts = value.split(',')
     if len(opts) > 1:
@@ -1058,7 +1062,7 @@ def _handle_urilen(value):
 
 
 def _handle_detection_filter(value):
-    #Converts detection_filter -> --rate and --track  
+    #Converts detection_filter -> --rate and --track
     #Syntax: detection_filter: <track>, <count>, <sec>
     logging.debug('inside _handle_detection_filter')
     pattern = ''
@@ -1093,10 +1097,10 @@ def _handle_direct_trans(key, value):
 
 
 def _handle_isdataat(value):
-    #Converts isdataat -> --data_at <num>;                           
-    #For negative option, can use --data_size < <value>              
+    #Converts isdataat -> --data_at <num>;
+    #For negative option, can use --data_size < <value>
     #1. Cannot convert negative option if 'relative' modifier is set.
-    #2. Cannot handle non-rawbytes. warn?                            
+    #2. Cannot handle non-rawbytes. warn?
     logging.debug('inside _handle_isdataat')
     opts = value.replace('rawbytes', '')
     opts = opts.replace(' ', '').split(',')
@@ -1132,9 +1136,9 @@ def _handle_isdataat(value):
 
 def _handle_service(value):
     #Convert service -> --service <service>;  (snort3 only)
-    #Syntax: service: <service_1>, <service_2>...;         
-    #Must override all services found.                     
-    #Cannot handle multiple services.                      
+    #Syntax: service: <service_1>, <service_2>...;
+    #Must override all services found.
+    #Cannot handle multiple services.
     logging.debug('inside _handle_service')
     if ',' in value:
         logging.warning('"service" cannot convert %s. Too many services. Omitting option.' % value)
@@ -1145,9 +1149,9 @@ def _handle_service(value):
 
 
 def _handle_metadata(value):
-    #Extracts service from metadata (snort 2 only)  
-    #Must override all services found.              
-    #Cannot handle multiple services.               
+    #Extracts service from metadata (snort 2 only)
+    #Must override all services found.
+    #Cannot handle multiple services.
     logging.debug('inside _handle_metadata')
     if 'service ' not in value:
         # do not need to further parse metadata, just return None
@@ -1161,8 +1165,8 @@ def _handle_metadata(value):
 
 
 def _handle_ttl(value):
-    #Converts ttl -> ip.ttl                    
-    #Syntax: ttl: [<, >, =, <=, >=] <number>;  
+    #Converts ttl -> ip.ttl
+    #Syntax: ttl: [<, >, =, <=, >=] <number>;
     #Syntax: ttl: [number]-[number];  (range)
     logging.debug('inside _handle_ttl')
     value = value.replace(' ', '')
@@ -1180,9 +1184,9 @@ def _handle_ttl(value):
 
 
 def _handle_header_opt_list(opt_list, opt_type):
-    #Parses rule header ports and ip addresses list and extracts policy variable. 
-    #Converts possible policy variables to --service if possible.                 
-    #Removes policy variables from list. (FGT does not handle)                    
+    #Parses rule header ports and ip addresses list and extracts policy variable.
+    #Converts possible policy variables to --service if possible.
+    #Removes policy variables from list. (FGT does not handle)
     f_services = []
     known_policy_vars = []
     if opt_type == 'addr':
@@ -1225,9 +1229,9 @@ def _handle_header_opt_list(opt_list, opt_type):
 
 
 def _handle_header(header):
-    #Handles the header of a Snort rule                                  
-    #alert protocol src_network src_port direction dst_network dst_port  
-    #and returns the converted IPS keywords for the body.                
+    #Handles the header of a Snort rule
+    #alert protocol src_network src_port direction dst_network dst_port
+    #and returns the converted IPS keywords for the body.
     global bi_direction_flag
     global alert_file_flag
     header = re.sub(r' +', ' ', header)
@@ -1319,13 +1323,13 @@ def __reset_flags():
 
 def _handle_body(body):
     #Handles the body of a Snort rule ( abcd:defg; hijk:lmn,opq; )
-    #Uses keyword_handler to handle each option keyword parsed    
-    #and returns the converted IPS keywords for the body.         
-    #eg. key = 'hijk', value = 'lmn,opq'                          
-	
+    #Uses keyword_handler to handle each option keyword parsed
+    #and returns the converted IPS keywords for the body.
+    #eg. key = 'hijk', value = 'lmn,opq'
+
     rule = ''
     snort_body = body
-	
+
     # Semicolon fix: if '; ' is in content or PCRE, this will break the
     # partition early
     # replace '; ' with equivalent ';\x20' if pcre:"something; "; is found
@@ -1335,11 +1339,11 @@ def _handle_body(body):
     content_semicolon_fix = re.compile('(content\:\s*\"[^\"]*)\; (.*)')
     snort_body_m = pcre_semicolon_fix.search(snort_body)
     while snort_body_m:
-        snort_body = pcre_semicolon_fix.sub(r'\1;\x20\2', snort_body)
+        snort_body = pcre_semicolon_fix.sub(r'\1;\x20\2', snort_body, count=1)
         snort_body_m = pcre_semicolon_fix.search(snort_body)
     snort_body_m = content_semicolon_fix.search(snort_body)
     while snort_body_m:
-        snort_body = content_semicolon_fix.sub(r'\1;|20|\2', snort_body)
+        snort_body = content_semicolon_fix.sub(r'\1;|20|\2', snort_body, count=1)
         snort_body_m = content_semicolon_fix.search(snort_body)
 
     # Begin tokenizing snort_body.
@@ -1365,7 +1369,7 @@ def _handle_body(body):
 
 
 def __get_sig_name(rule):
-    #Automatically generate custom signature name from SID and MSG 
+    #Automatically generate custom signature name from SID and MSG
     msg_re = re.compile(r'msg:\s?"([^;"]+)";')
     sid_re = re.compile(r'sid:\s?(\d+);')
     m = msg_re.search(rule)
@@ -1387,10 +1391,10 @@ def __get_sig_name(rule):
 
 
 def process_snort(rule):
-    #Process each rule divided into header and body portions    
-    #If any errors lead to signature conversion error,          
-    #returns False, ''                                          
-    #Else returns True, converted_fgt_sig                       
+    #Process each rule divided into header and body portions
+    #If any errors lead to signature conversion error,
+    #returns False, ''
+    #Else returns True, converted_fgt_sig
     global sticky_buffer_flag
     snort_sig = re.compile('(?P<header>.+?)\((?P<body>.+);\s*\)')
     m = snort_sig.match(rule)
@@ -1426,7 +1430,7 @@ def __single_option_check(rule):
     #If they are the same, eg, --service sip; --service sip; only keep 1.
 
     #Additionally, check for global service priority and add it if it exists.
-   
+
     single_options = ['protocol', 'service']
     serv = service_priority.get_service()
     if serv:
@@ -1460,9 +1464,9 @@ def __optimize_post_processing(rule, fgt_sig):
     #where Snort2/Snort3 difference is not encountered until later in the sig when the
     #assumption has been made.
     #The biggest chunk here handles file_data; and pkt_data; misordering in certain Snort2
-    #rules. See file_data test cases in Unit Test. 
+    #rules. See file_data test cases in Unit Test.
     #Further optimize for 'parsed_type' IPS keyword (equivalent of http_method with
-    #content:"GET" or "POST") 
+    #content:"GET" or "POST")
     if 'file_data;' in rule or 'pkt_data;' in rule:
         if last_seen_option not in ['content', 'pcre', 'file_data', 'pkt_data', 'uricontent']:
             # the remainder being last seen means it was a Snort2 rule
@@ -1508,15 +1512,16 @@ def __optimize_post_processing(rule, fgt_sig):
 
 def output_json(outfile, fgt_count, snort_count):
     #JSON has been written to json_stream iteratively
-    #Load as JSON and write out to file 
+    #Load as JSON and write out to file
     out_json = {}
     stats = {}
-    stats.update({'success': fgt_count})
-    stats.update({'failure': snort_count - fgt_count})
-    out_json.update({'statistics': stats})
+    stats['success'] = fgt_count
+    stats['failure'] = snort_count - fgt_count
+    out_json['statistics'] = stats
     results = json.loads(json_stream.getvalue()[:-3] + ']')  # Remove trailing , from stream to close properly
-    out_json.update({'results': results})
-    json.dump(out_json, outfile, ensure_ascii=False, indent=4, sort_keys=True)
+    out_json['results'] = results
+    # dumps+write faster than dump
+    outfile.write(json.dumps(out_json, ensure_ascii=False, indent=4, sort_keys=True))
 
 
 def write_sig(rule, sig, sig_name, out_file, gui, j):
@@ -1540,15 +1545,15 @@ def write_sig(rule, sig, sig_name, out_file, gui, j):
                 for msg in log_msgs:
                     msg_obj = {}
                     (level, c, message) = msg.partition(':')
-                    msg_obj.update({"level": level})
-                    msg_obj.update({"message": message})
+                    msg_obj["level"] = level
+                    msg_obj["message"] = message
                     messages.append(msg_obj)
             rule_obj = {}
-            rule_obj.update({"original": rule})
-            rule_obj.update({"converted": sig})
-            rule_obj.update({"name": sig_name})
-            rule_obj.update({"messages": messages})
-            rule_obj.update({"success": success})
+            rule_obj["original"] = rule
+            rule_obj["converted"] = sig
+            rule_obj["name"] = sig_name
+            rule_obj["messages"] = messages
+            rule_obj["success"] = success
             json_obj = json.dumps(rule_obj)
             json_stream.write(json_obj + " , \n")
 
@@ -1593,18 +1598,18 @@ def __set_logging(debug=False, quiet=False, j=False):
         string_handler.setLevel(log_level)
         logging.getLogger().addHandler(string_handler)
         json_stream.write('[')
-		
-		
 
-#The four classes will have to be instantiated here for unit testing to work as 
-#the process_snort function requires them to work. 	
+
+
+#The four classes will have to be instantiated here for unit testing to work as
+#the process_snort function requires them to work.
 context_flags = ContextFlags()
 regs = Registers()
 service_priority = ServicePriority()
 keywordhandler = FunctionSwitch()
 
 def test_convert(snort_rule):
-    #Loop for testing purpose only. 
+    #Loop for testing purpose only.
     snort_tag = re.compile('\s*(?P<disabled>#?)\s*alert\s+(?P<rule>.*)')
     m = snort_tag.match(snort_rule)
     if m:
@@ -1630,9 +1635,9 @@ def usage():
     vulnwatch@fortinet.com
     -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     ''' % (version)
-	
+
 def main():
-    #Main loop 
+    #Main loop
     global snort_count
     global fgt_rule_count
     global disabled_snort_count
@@ -1640,7 +1645,7 @@ def main():
     #global context_flags
     #global keywordhandler
     #global regs
-    start = time.time()
+
     parser = argparse.ArgumentParser(description=usage(), formatter_class=argparse.RawTextHelpFormatter, add_help=True)
     parser.add_argument('-i', '--input', dest='input', required=True)
     parser.add_argument('-o', '--output', dest='output', default=output_file)
@@ -1663,7 +1668,7 @@ def main():
     #regs = Registers()
     #service_priority = ServicePriority()
     #keywordhandler = FunctionSwitch()
-	
+
     # Do basic check for alert and send to process_snort
     snort_tag = re.compile('\s*(?P<disabled>#?)\s*alert\s+(?P<rule>.*)')
     for line in in_f:
@@ -1711,8 +1716,7 @@ def main():
     out_f.close()
     json_stream.close()
     log_stream.close()
-    end = time.time()
-    print end - start	
+
 
 if __name__ == "__main__":
     main()
