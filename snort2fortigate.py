@@ -1330,26 +1330,25 @@ def _handle_body(body):
     rule = ''
     snort_body = body
 
-    # Semicolon fix: if '; ' is in content or PCRE, this will break the
-    # partition early
-    # replace '; ' with equivalent ';\x20' if pcre:"something; "; is found
-    # ';|20|' if in content, eg. content:"test=ddd; "
-    # This may have side effects on something like content:"pcre:\; "
-    pcre_semicolon_fix = re.compile('(pcre\:\s*\"[^\"]*)\; (.*)')
-    content_semicolon_fix = re.compile('(content\:\s*\"[^\"]*)\; (.*)')
+    # Better Semicolon Fix: Convert all semicolons in 'content:' or 'pcre:' to
+    # the encoded value, so that the keywords can be partitioned with ';'
+    # Some rulesets don't have spaces after the semicolon, which Snort still
+    # accepts.
+    pcre_semicolon_fix = re.compile('(pcre\:\s*\"[^\"]*)\;(.*)')
+    content_semicolon_fix = re.compile('(content\:\s*\"[^\"]*)\;(.*)')
     snort_body_m = pcre_semicolon_fix.search(snort_body)
     while snort_body_m:
-        snort_body = pcre_semicolon_fix.sub(r'\1;\x20\2', snort_body, count=1)
+        snort_body = pcre_semicolon_fix.sub(r'\1\x3b\2', snort_body, count=1)
         snort_body_m = pcre_semicolon_fix.search(snort_body)
     snort_body_m = content_semicolon_fix.search(snort_body)
     while snort_body_m:
-        snort_body = content_semicolon_fix.sub(r'\1;|20|\2', snort_body, count=1)
+        snort_body = content_semicolon_fix.sub(r'\1|3B|\2', snort_body, count=1)
         snort_body_m = content_semicolon_fix.search(snort_body)
 
     # Begin tokenizing snort_body.
     while len(snort_body) > 0:
         # extract each token delimited by ;
-        token = snort_body.partition('; ')
+        token = snort_body.partition(';')
         option = token[0].partition(':')
         key = option[0].strip()  # option name, eg. content
         value = option[2].strip()  # value for keyword ( ie. stuff after content: )

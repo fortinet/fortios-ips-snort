@@ -120,6 +120,6 @@ To run unit tests, use:
 Fortinet-provided scripts in this and other GitHub projects do not fall under the regular Fortinet technical support scope and are not supported by FortiCare Support Services. For direct issues, please refer to the Issues tab of this GitHub project. For other questions related to this project, contact github@fortinet.com.
 
 ### License
-License © Fortinet Technologies. All rights reserved.
+[License](https://github.com/fortinet/fortios-ips-snort/blob/master/LICENSE) © Fortinet Technologies. All rights reserved.
 
 
