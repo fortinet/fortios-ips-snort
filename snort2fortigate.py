@@ -83,7 +83,7 @@ keywordhandler = None
 
 
 #map all the different keywords related to context for easy conversion later
-context_header = {'http_cookie':'H', 'http_raw_cookie':'H', 'http_header':'H', 'http_raw_header':'H', 'sip_header':'H'}
+context_header = {'http_cookie':'H', 'http_raw_cookie':'H', 'http_header':'H', 'http_raw_header':'H', 'sip_header':'H', 'http_user_agent': 'H'}
 context_banner = {'http_stat_code':'R', 'http_stat_msg':'R', 'sip_method':'R', 'sip_stat_code':'R', 'http_raw_status':'R'}
 context_body = {'sip_body':'B', 'http_client_body':'B', 'http_raw_body':'B'}
 context_uri = {'http_method':'U', 'http_uri':'U', 'http_raw_uri':'U', 'http_raw_request':'U'}
@@ -330,10 +330,10 @@ def keyword_handler(key, value):
     elif __keyword_handler != None:
         rule += __check_and_add_context_packet()
         open_context_flag = False
-        if key in direct_trans.keys():
-            handled_opt = __keyword_handler(direct_trans[key], value)
+        if key.lower() in direct_trans.keys():
+            handled_opt = __keyword_handler(direct_trans[key.lower()], value)
         else:
-            handled_opt = __keyword_handler(value)
+            handled_opt = __keyword_handler(value.lower())
         if handled_opt:
             rule += handled_opt
             valid = True
@@ -352,7 +352,7 @@ def keyword_handler(key, value):
             valid = True
         service_priority.set_service(key.split('_')[0])
     elif key in content_modifier:
-        handled_opt = _handle_content_modifier(key, value)
+        handled_opt = _handle_content_modifier(key, value.lower())
         if handled_opt:
             rule += handled_opt
             valid = True
@@ -1190,11 +1190,11 @@ def _handle_header_opt_list(opt_list, opt_type):
     f_services = []
     known_policy_vars = []
     if opt_type == 'addr':
-        known_policy_vars = ['$DNS_SERVERS', '$TELNET_SERVERS', '$HTTP_SERVERS', '$SMTP_SERVERS']
+        known_policy_vars = ['$dns_servers', '$telnet_servers', '$http_servers', '$smtp_servers']
     elif opt_type == 'port':
-        known_policy_vars = ['$HTTP_PORTS', '$FTP_PORTS', '$SIP_PORTS', '$SMTP_PORTS']
+        known_policy_vars = ['$http_ports', '$ftp_ports', '$sip_ports', '$smtp_ports']
 
-    if opt_list == 'any':
+    if opt_list.lower() == 'any':
         return (-1, -1)
 
     # if only one element in opt_list, remove brackets
@@ -1239,7 +1239,7 @@ def _handle_header(header):
     if m:
         for i in m:
             header = re.sub(r'(\[ ?[^\]]+ [^\]]+ ?\])', i.replace(' ', ''), header, count=1)
-    s_header = header.strip().split(' ')
+    s_header = header.strip().lower().split(' ')
     f_header = {'service': []}
     key = ['protocol', 'src_addr', 'src_port', 'flow', 'dst_addr', 'dst_port']
     if (len(s_header) > 6) or (len(s_header) == 0):
@@ -1276,9 +1276,11 @@ def _handle_header(header):
             (parsed_opt, services) = _handle_header_opt_list(entry, key[i].split("_")[1])
             if parsed_opt != -1:
                 if '{' in parsed_opt:
-                    logging.warning('Cannot convert list of ports. Option not supported.')
+                    logging.warning('Cannot convert list of ports. Option not supported. Signature will be converted without port list')
                     # tcp.dst_port/src_port is not supported for now. Uncomment after it is supported.
                     # f_header['tcp.%s in' % key[i]] = parsed_opt
+                elif ',' in parsed_opt and '.' not in parsed_opt:
+                    logging.warning('Cannot convert list of ports. Option not supported. Signature will be converted without port list')
                 else:
                     f_header[key[i]] = parsed_opt
             if services != -1:
@@ -1350,7 +1352,7 @@ def _handle_body(body):
         # extract each token delimited by ;
         token = snort_body.partition(';')
         option = token[0].partition(':')
-        key = option[0].strip()  # option name, eg. content
+        key = option[0].strip().lower()  # option name, eg. content
         value = option[2].strip()  # value for keyword ( ie. stuff after content: )
 
         (valid, new_rule) = keyword_handler(key, value)
@@ -1369,8 +1371,8 @@ def _handle_body(body):
 
 def __get_sig_name(rule):
     #Automatically generate custom signature name from SID and MSG
-    msg_re = re.compile(r'msg:\s?"([^;"]+)";')
-    sid_re = re.compile(r'sid:\s?(\d+);')
+    msg_re = re.compile(r'msg:\s?"([^;"]+)";', re.IGNORECASE)
+    sid_re = re.compile(r'sid:\s?(\d+);', re.IGNORECASE)
     m = msg_re.search(rule)
     if m:
         msg = m.group(1)
@@ -1416,7 +1418,7 @@ def process_snort(rule):
 
         return (True, fgt_sig, sig_name)
     else:
-        logging.error('Error parsing Snort rule format.')
+        logging.error('Error parsing Snort rule format due to syntax error. Please check your snort rule for syntax issues. Some possible causes are missing semi-colon, missing parentheses, etc')
         return (False, fgt_sig, sig_name)
 
 
@@ -1640,10 +1642,9 @@ def main():
     global snort_count
     global fgt_rule_count
     global disabled_snort_count
-    #global service_priority
-    #global context_flags
-    #global keywordhandler
-    #global regs
+
+    is_multiline_rule = False
+    started_valid_rule = False
 
     parser = argparse.ArgumentParser(description=usage(), formatter_class=argparse.RawTextHelpFormatter, add_help=True)
     parser.add_argument('-i', '--input', dest='input', required=True)
@@ -1663,25 +1664,42 @@ def main():
     if in_f == None or out_f == None:
         sys.exit(-1)
 
-    #context_flags = ContextFlags()
-    #regs = Registers()
-    #service_priority = ServicePriority()
-    #keywordhandler = FunctionSwitch()
 
     # Do basic check for alert and send to process_snort
-    snort_tag = re.compile('\s*(?P<disabled>#?)\s*alert\s+(?P<rule>.*)')
+    snort_tag = re.compile('^\s*(?P<disabled>#?)\s*(?:alert|log|s?drop|pass|reject)\s+(?P<rule>.*?)(?P<ml>\\\\)?\s*$', re.IGNORECASE)
+    multiline_re = re.compile('(?P<rule>.*?)(?P<ml>\\\\)?\s*$')
     for line in in_f:
         m = snort_tag.match(line)
         if m:
+            started_valid_rule = True
             logging.debug("Snort sig %d" % snort_count)
             rule = m.group('rule')
-
             if args.ignore_disabled:
                 if len(m.group('disabled')) > 0:
                     logging.debug("Disabled sig (# alert ...)")
                     disabled_snort_count += 1
                     continue
+            if m.group('ml'):
+                # this is a multi-line Snort rule ending in \
+                # continue to get next line which will be concat to rule
+                is_multiline_rule = True
+                logging.debug('multiline rule: %s' % rule)
+                continue
+        elif is_multiline_rule:
+            m = multiline_re.match(line)
+            if m:
+                rule += m.group('rule')
+                logging.debug('multiline rule: %s' % rule)
+                if m.group('ml'):
+                    # still not done
+                    continue
+                else:
+                    # Has full rule.
+                    is_multiline_rule = False
+        else:
+            started_valid_rule = False
 
+        if started_valid_rule:
             snort_count += 1
             (valid, fgt_sig, sig_name) = process_snort(rule)
             fgt_sig = __optimize_post_processing(rule, fgt_sig)
@@ -1700,6 +1718,7 @@ def main():
                 ok = write_sig(rule, fgt_sig, sig_name, out_f, args.gui, args.json)
                 if ok:
                     fgt_rule_count += 1
+
 
     if args.json:
         output_json(out_f, fgt_rule_count, snort_count)
