@@ -387,13 +387,13 @@ def _handle_content_modifier(key, value):
         if key == 'nocase':
             rule = ' --no_case;'
         elif key == 'depth':
-            rule = ' --distance %s,context;' % value
+            rule = ' --within %s,context;' % value
             if not sticky_buffer_flag:
                 context_modifier_flag = True
         elif key == 'distance':
             rule = ' --distance %s;' % value
         elif key == 'offset':
-            rule = ' --within %s,context;' % value
+            rule = ' --distance %s,context;' % value
             if not sticky_buffer_flag:
                 context_modifier_flag = True
         elif key == 'within':
