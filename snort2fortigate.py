@@ -829,14 +829,14 @@ def _handle_byte_test(value):
         elif '>' in op:
             pattern += ',<,'
             if '!>' == op:
-                ret_val = __arith(val, '-')
+                ret_val = __arith(val, '+')
                 if not ret_val:
                     logging.error('"byte_test" cannot convert "%s". Operator not supported.' % value)
                     return False
         elif '<' in op:
             pattern += ',>,'
             if '!<' == op:
-                ret_val = __arith(val, '+')
+                ret_val = __arith(val, '-')
                 if not ret_val:
                     logging.error('"byte_test" cannot convert "%s". Operator not supported.' % value)
                     return False
