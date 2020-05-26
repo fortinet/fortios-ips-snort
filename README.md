@@ -9,7 +9,6 @@
     -j output rule txt in a json format
     -g output suitable for GUI entry
     -e only convert enabled signatures
-    --no-all skip result for invalid lines in file
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 ```
 The Snort2Fortigate script provides a best-effort translation of Snort rules into FortiGate IPS Custom Signatures.
@@ -40,23 +39,13 @@ JSON output format, for each parsed rule:
 "original": "The original Snort rule",
 "success": true if a signature was converted at all, or false if there is an ERROR and the rule is skipped
 ```
-Additionally, the JSON output aggregates count of converted signatures:
-```
-"statistics": {
-    "failure": 1,
-    "success": 3
-}
-```
 
 #### Additional Options
 - `-q` or `--quiet`
 Suppress warnings and errors.
 - `-e` or `--enabled-only`
 By default, all Snort rules found in the file are converted.
-Set this option to *not* convert Snort rules that are commented out with a single `#`, eg. rules beginning with `# alert ...`.
-- `--no-all`
-Set this option to ignore lines that do not begin with a rule action.
-Current supported rule actions: `alert, log, pass, drop, reject, sdrop`.
+Set this option to *not* convert Snort rules that are commented out, eg. rules beginning with `# alert ...`.
 
 ### Logging
 Unsupported or unrecognized options are logged as a warning and the rest of the signature is still generated. Use these signatures with discretion.
@@ -74,8 +63,8 @@ See [Known Issues](#Known_Issues) for common conversion issues.
 | `nocase` | `--no_case` | |
 | `distance` | `--distance` | |
 | `within` | `--within` | |
-| `depth` | `--within num,context` | |
-| `offset` | `--distance num,context` | |
+| `depth` | `--distance num,context` | |
+| `offset` | `--within num,context` | |
 | `file_data` | `--context file` | |
 | `http_client_body` | `--context body` | |
 | `http_cookie` | `--context header` | |
