@@ -459,8 +459,8 @@ def _handle_context(key, context):
 
 
 def __normalize_pattern(p):
-	p = p.replace('\\;', '|3B|')
-	p = p.replace('\\:', '|3A|')
+	p = p.replace('\\|', '|7C|')
+	p = p.replace('\\\\', '|5C|')
 	return p
 
 
@@ -1332,19 +1332,41 @@ def _handle_body(body):
 	rule = ''
 	snort_body = body
 
+	# Convert escaped quotes \" to |22| or \x22 (in content or pcre)
+	content_quote_fix = re.compile(r'content\:\s*\!?\"[^\"]*?\\\".*?(?<!\\)\"')
+	pcre_quote_fix = re.compile(r'pcre\:\s*\!?\".*?\\\".*?(?<!\\)\"')
+	snort_body_m = content_quote_fix.search(snort_body)
+	while snort_body_m:
+		logging.debug("fixing escaped quote in content")
+		logging.debug(snort_body_m.group(0))
+		replace_quote = snort_body_m.group(0).replace('\\\"','|22|')
+		snort_body = content_quote_fix.sub(repr(replace_quote)[1:-1], snort_body, count=1)
+		snort_body_m = content_quote_fix.search(snort_body)
+	snort_body_m = pcre_quote_fix.search(snort_body)
+	while snort_body_m:
+		logging.debug("fixing escaped quote in pcre")
+		logging.debug(snort_body_m.group(0))
+		replace_quote = snort_body_m.group(0).replace('\\\"','\\x22')
+		snort_body = pcre_quote_fix.sub(repr(replace_quote)[1:-1], snort_body, count=1)
+		snort_body_m = pcre_quote_fix.search(snort_body)
+
 	# Better Semicolon Fix: Convert all semicolons in 'content:' or 'pcre:' to
 	# the encoded value, so that the keywords can be partitioned with ';'
 	# Some rulesets don't have spaces after the semicolon, which Snort still
 	# accepts.
-	pcre_semicolon_fix = re.compile('(pcre\:\s*\"[^\"]*)\;(.*)')
-	content_semicolon_fix = re.compile('(content\:\s*\"[^\"]*)\;(.*)')
+	pcre_semicolon_fix = re.compile(r'(pcre\:\s*\!?\"[^\"]*?)\\\;')
+	content_semicolon_fix = re.compile(r'(content\:\s*\!?\"[^\"]*?)\\\;')
 	snort_body_m = pcre_semicolon_fix.search(snort_body)
 	while snort_body_m:
-		snort_body = pcre_semicolon_fix.sub(r'\1\x3b\2', snort_body, count=1)
+		logging.debug("fixing escaped semicolon in pcre")
+		logging.debug(snort_body_m.group(1))
+		snort_body = pcre_semicolon_fix.sub(r'\1\x3b', snort_body, count=1)
 		snort_body_m = pcre_semicolon_fix.search(snort_body)
 	snort_body_m = content_semicolon_fix.search(snort_body)
 	while snort_body_m:
-		snort_body = content_semicolon_fix.sub(r'\1|3B|\2', snort_body, count=1)
+		logging.debug("fixing escaped semicolon in content")
+		logging.debug(snort_body_m.group(1))
+		snort_body = content_semicolon_fix.sub(r'\1|3B|', snort_body, count=1)
 		snort_body_m = content_semicolon_fix.search(snort_body)
 
 	# Begin tokenizing snort_body.
@@ -1499,7 +1521,7 @@ def __optimize_post_processing(rule, fgt_sig):
 			fgt_sig = m_contexts_replace.sub('\\1\\3\\4', fgt_sig)
 
 	if 'http_method;' in rule:  # Sanity check in case someone wanted "GET" in actual URI
-		parsed_type = re.compile('(\s--pattern\s\"(?:GET|POST)\"\; --context uri;)(?!\s*--(?:distance|within))')
+		parsed_type = re.compile('(\s--pattern\s\"(?:GET|POST)\"\;(?:\s*--no_case;)? --context uri;(?:\s*--no_case;)?)(?!\s*--(?:distance|within))')
 		method = parsed_type.findall(fgt_sig)
 		if len(method) == 1:  # only change sig when only one occurrence is found, just in case
 			if 'GET' in method[0]:
@@ -1532,6 +1554,8 @@ def output_json(outfile, fgt_count, snort_count, output_all):
 def write_sig(rule, sig, sig_name, out_file, gui, j):
 	try:
 		if not gui:
+			# CLI needs extra backslash for escaped characters
+			sig = sig.replace('\\', '\\\\')
 			sig = sig.replace('"', '\\"')
 		if not j:
 			if sig:
