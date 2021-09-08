@@ -210,6 +210,7 @@ class ServicePriority:
 		'sip': ' --service sip;',
 		'modbus': ' --service modbus;',
 		'ssl': ' --service ssl;',
+		'tls': ' --service ssl;',
 		'ftp': ' --service ftp;',
 		'telnet': ' --service telnet;',
 		'smtp': ' --service smtp;',
@@ -1252,11 +1253,13 @@ def _handle_header(header):
 			if entry == 'file':
 				f_header[key[i]] = 'tcp'
 				alert_file_flag = True
-			elif entry == 'http':
-				f_header[key[i]] = 'tcp'
-				f_header['service'] = 'http'
 			elif entry in ['tcp', 'udp', 'icmp']:
 				f_header[key[i]] = s_header[i]
+			elif entry in ['http', 'tls', 'ftp', 'smtp']:
+				f_header[key[i]] = 'tcp'
+				f_header['service'] = [entry]
+			elif entry in ['dns', 'ssh']:
+				f_header['service'] = [entry]
 			elif entry in ['any', 'ip']:
 				logging.warning('Snort protocol "%s": "--protocol" option is omitted.' % entry)
 			else:
