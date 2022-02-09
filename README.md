@@ -10,6 +10,7 @@
     -g output suitable for GUI entry
     -e only convert enabled signatures
     --no-all skip result for invalid lines in file
+    --sig-max-len maximum length of converted IPS sig
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 ```
 The Snort2Fortigate script provides a best-effort translation of Snort rules into FortiGate IPS Custom Signatures.

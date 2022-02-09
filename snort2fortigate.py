@@ -53,6 +53,7 @@ fgt_rule_count = 0
 rule_maxlen = 1024
 log_stream = StringIO()
 json_stream = StringIO()
+max_sig_name_len = 50
 
 # Keeping state for Snort3 syntax
 content_seen_flag = False  # has encountered content: or pcre: in this rule
@@ -92,8 +93,9 @@ context_file = {'file_data':'F'}
 context_raw_packet = {'raw_data':'O', 'rawbytes':'O'}
 
 keyword_dict = {} #this dictionary will store all the context related keyword
-for i in (context_header, context_banner, context_body, context_uri, context_packet,\
-context_file, context_raw_packet): keyword_dict.update(i)
+for i in (context_header, context_banner, context_body, context_uri, context_packet, \
+	context_file, context_raw_packet):
+		keyword_dict.update(i)
 
 #keyword that we can omit without any impact on the signature detection
 key_drop = {'msg', 'reference', 'rev', 'classtype', 'priority', 'sid', 'gid',
@@ -210,7 +212,7 @@ class ServicePriority:
 		'sip': ' --service sip;',
 		'modbus': ' --service modbus;',
 		'ssl': ' --service ssl;',
-		'tls': ' --service ssl;',
+ 		'tls': ' --service ssl;',
 		'ftp': ' --service ftp;',
 		'telnet': ' --service telnet;',
 		'smtp': ' --service smtp;',
@@ -1257,7 +1259,10 @@ def _handle_header(header):
 				f_header[key[i]] = s_header[i]
 			elif entry in ['http', 'tls', 'ftp', 'smtp']:
 				f_header[key[i]] = 'tcp'
-				f_header['service'] = [entry]
+				if entry == 'tls':
+					f_header['service'] = ['ssl']
+				else:
+					f_header['service'] = [entry]
 			elif entry in ['dns', 'ssh']:
 				f_header['service'] = [entry]
 			elif entry in ['any', 'ip']:
@@ -1412,7 +1417,7 @@ def __get_sig_name(rule):
 	invalid_chars_in_name = re.compile(r'[^a-zA-Z0-9 _-]')
 	msg = re.sub(invalid_chars_in_name, '', msg)
 	sig_name = 'SID' + sid + '-' + msg
-	sig_name = sig_name[:63].strip().replace(' ', '.')  # truncate sig name
+	sig_name = sig_name[:max_sig_name_len].strip().replace(' ', '.')  # truncate sig name
 	return sig_name
 
 
@@ -1661,6 +1666,7 @@ def usage():
 	-g output suitable for GUI entry
 	-e only convert enabled signatures
 	--no-all skip result for invalid lines in file
+	--sig-max-len maximum length of converted IPS sig
 
 	Version : %s
 	For all issues regarding the script, please email:
@@ -1684,6 +1690,8 @@ def main():
 	parser.add_argument('-j', '--json', dest='json', action='store_const', const=True, default=False)
 	parser.add_argument('-g', '--gui', dest='gui', action='store_const', const=True, default=False)
 	parser.add_argument('-e', '--enabled-only', dest='ignore_disabled', action='store_const', const=True, default=False)
+	parser.add_argument("--sig-max-len", dest='sig_max_len', type=int, default=rule_maxlen,
+	    help="Maximum length of converted IPS sig limited by FortiOS version")
 	all_parser = parser.add_mutually_exclusive_group(required=False)
 	all_parser.add_argument('-a', '--all', dest='all', action='store_true')
 	all_parser.add_argument('--no-all', dest='all', action='store_false')
@@ -1694,6 +1702,8 @@ def main():
 	__set_logging(debug=args.debug, quiet=args.quiet, j=args.json)
 
 	logging.debug(args)
+	if args.sig_max_len < rule_maxlen:
+	    parser.error("--sig-max-len must be >= %s." % rule_maxlen)
 	in_f, out_f = open_files(args.input, args.output)
 	if in_f == None or out_f == None:
 		sys.exit(-1)
@@ -1741,8 +1751,8 @@ def main():
 			logging.debug(fgt_sig)
 			__reset_flags()
 
-			if len(fgt_sig) > rule_maxlen:
-				logging.error("Signature max length 1024 exceeded.")
+			if len(fgt_sig) > args.sig_max_len:
+				logging.error("Signature max length %s exceeded." % args.sig_max_len)
 				valid = False
 
 			if not valid:
