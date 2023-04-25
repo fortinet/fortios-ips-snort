@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # This script is being provided by the copyright holders under the following
 # license. By obtaining, using and/or copying this work, you (the licensee)
 # agree that you have read, understood, and will comply with the following terms
@@ -28,18 +28,13 @@
 #
 # Copyright 2019 Fortinet, Inc. All Rights Reserved.
 
-import os
 import sys
 import re
 import argparse
 import logging
 import json
 
-
-try:
-	from cStringIO import StringIO  # Python 2
-except ImportError:
-	from io import StringIO
+from io import StringIO  #Python 3
 
 # Declare the globals
 version = '3.0'
@@ -1606,7 +1601,7 @@ def open_files(infile, outfile):
 		in_f = open(infile, 'r')
 		out_f = open(outfile, 'w')
 	except IOError as e:
-		print "I/O error({0}): {1}".format(e.errno, e.strerror)
+		print("I/O error({0}): {1}".format(e.errno, e.strerror))
 	except TypeError:
 		if in_f == None:
 			logging.critical("Please provide a valid input file.")
@@ -1703,8 +1698,10 @@ def main():
 
 	logging.debug(args)
 	if args.sig_max_len < rule_maxlen:
-	    parser.error("--sig-max-len must be >= %s." % rule_maxlen)
+		parser.error("--sig-max-len must be >= %s." % rule_maxlen)
+    
 	in_f, out_f = open_files(args.input, args.output)
+    
 	if in_f == None or out_f == None:
 		sys.exit(-1)
 
@@ -1777,12 +1774,12 @@ def main():
 		output_json(out_f, fgt_rule_count, snort_count, args.all)
 
 	# Final print and cleanup.
-	print "\n%s:\nTotal %d from %d Snort rules are converted" \
-		  % (sys.argv[0], fgt_rule_count, snort_count)
+	print("\n%s:\nTotal %d from %d Snort rules are converted" \
+		  % (sys.argv[0], fgt_rule_count, snort_count))
 	if args.ignore_disabled:
-		print "(%s disabled)\n" % disabled_snort_count
+		print("(%s disabled)\n" % disabled_snort_count)
 	else:
-		print ''
+		print('')
 	in_f.close()
 	out_f.close()
 	json_stream.close()
