@@ -1290,7 +1290,7 @@ def _handle_header(header):
 				f_header['service'] += services
 
 	rule = ''
-	for key, value in f_header.items():
+	for key, value in sorted(f_header.items()):
 		if key == 'service':
 			if len(value) == 0:
 				continue
