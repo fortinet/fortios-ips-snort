@@ -1,0 +1,2 @@
+F-SBID( --name "SID25866-BackdoorDNSBEACONCSBundle.DNS"; --protocol udp; --src_port 53; --pattern "|00 01 00 01|"; --distance 4,context; --within 4,context; --context packet; --pattern "|03|"; --within 15; --context packet; --pattern "|0a|_domainkey"; --distance 3; --within 11; --context packet; --pattern "|00 00 10 00 01 c0 0c 00 10 00 01 00 00 00 02 01 00 ff|v=DKIM1|3B| p="; --context packet; )
+

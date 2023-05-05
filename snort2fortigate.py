@@ -1536,6 +1536,12 @@ def __optimize_post_processing(rule, fgt_sig):
 	return fgt_sig
 
 
+def __len_check(fgt_sig, max_len):
+	if len(fgt_sig) > max_len:
+		logging.error("Signature max length %s exceeded." % max_len)
+		return False
+	return True
+
 def output_json(outfile, fgt_count, snort_count, output_all):
 	#JSON has been written to json_stream iteratively
 	#Load as JSON and write out to file
@@ -1639,13 +1645,14 @@ regs = Registers()
 service_priority = ServicePriority()
 keywordhandler = FunctionSwitch()
 
-def test_convert(snort_rule):
+def test_convert(snort_rule, max_len):
 	#Loop for testing purpose only.
 	snort_tag = re.compile('\s*(?P<disabled>#?)\s*alert\s+(?P<rule>.*)')
 	m = snort_tag.match(snort_rule)
 	if m:
 		(valid, fgt_sig, sig_name) = process_snort(m.group('rule'))
 		fgt_sig = __optimize_post_processing(m.group('rule'), fgt_sig)
+		if not __len_check(fgt_sig, max_len): valid = False
 	__reset_flags()
 	return valid, fgt_sig
 
@@ -1748,8 +1755,7 @@ def main():
 			logging.debug(fgt_sig)
 			__reset_flags()
 
-			if len(fgt_sig) > args.sig_max_len:
-				logging.error("Signature max length %s exceeded." % args.sig_max_len)
+			if not __len_check(fgt_sig, args.sig_max_len):
 				valid = False
 
 			if not valid:
