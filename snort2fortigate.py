@@ -37,7 +37,7 @@ import json
 from io import StringIO  #Python 3
 
 # Declare the globals
-version = '3.0'
+version = '3.1'
 print_err_warning = False
 debug_log = False
 input_file = None
