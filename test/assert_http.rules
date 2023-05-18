@@ -1,0 +1,2 @@
+F-SBID( --name "SID2033357-ET.MOBILE_MALWARE.NSO.Pegasus.iOS.Activ"; --dst_port 1024:; --protocol tcp; --service http; --flow from_client; --pattern "GET"; --pattern "/stadium/pop2.html?key="; --pattern "&n="; --distance 0; )
+F-SBID( --name "SID2033864-ET.MALWARE.Observed.Pegasus.Domain.hook"; --protocol tcp; --service ssl; --flow from_client; --pattern "hooklevel.com"; )

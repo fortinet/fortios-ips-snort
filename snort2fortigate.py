@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # This script is being provided by the copyright holders under the following
 # license. By obtaining, using and/or copying this work, you (the licensee)
 # agree that you have read, understood, and will comply with the following terms
@@ -28,18 +28,13 @@
 #
 # Copyright 2019 Fortinet, Inc. All Rights Reserved.
 
-import os
 import sys
 import re
 import argparse
 import logging
 import json
 
-
-try:
-	from cStringIO import StringIO  # Python 2
-except ImportError:
-	from io import StringIO
+from io import StringIO  #Python 3
 
 # Declare the globals
 version = '3.0'
@@ -1295,7 +1290,7 @@ def _handle_header(header):
 				f_header['service'] += services
 
 	rule = ''
-	for key, value in f_header.items():
+	for key, value in sorted(f_header.items()):
 		if key == 'service':
 			if len(value) == 0:
 				continue
@@ -1541,6 +1536,12 @@ def __optimize_post_processing(rule, fgt_sig):
 	return fgt_sig
 
 
+def __len_check(fgt_sig, max_len):
+	if len(fgt_sig) > max_len:
+		logging.error("Signature max length %s exceeded." % max_len)
+		return False
+	return True
+
 def output_json(outfile, fgt_count, snort_count, output_all):
 	#JSON has been written to json_stream iteratively
 	#Load as JSON and write out to file
@@ -1606,7 +1607,7 @@ def open_files(infile, outfile):
 		in_f = open(infile, 'r')
 		out_f = open(outfile, 'w')
 	except IOError as e:
-		print "I/O error({0}): {1}".format(e.errno, e.strerror)
+		print("I/O error({0}): {1}".format(e.errno, e.strerror))
 	except TypeError:
 		if in_f == None:
 			logging.critical("Please provide a valid input file.")
@@ -1644,13 +1645,14 @@ regs = Registers()
 service_priority = ServicePriority()
 keywordhandler = FunctionSwitch()
 
-def test_convert(snort_rule):
+def test_convert(snort_rule, max_len):
 	#Loop for testing purpose only.
 	snort_tag = re.compile('\s*(?P<disabled>#?)\s*alert\s+(?P<rule>.*)')
 	m = snort_tag.match(snort_rule)
 	if m:
 		(valid, fgt_sig, sig_name) = process_snort(m.group('rule'))
 		fgt_sig = __optimize_post_processing(m.group('rule'), fgt_sig)
+		if not __len_check(fgt_sig, max_len): valid = False
 	__reset_flags()
 	return valid, fgt_sig
 
@@ -1703,8 +1705,10 @@ def main():
 
 	logging.debug(args)
 	if args.sig_max_len < rule_maxlen:
-	    parser.error("--sig-max-len must be >= %s." % rule_maxlen)
+		parser.error("--sig-max-len must be >= %s." % rule_maxlen)
+    
 	in_f, out_f = open_files(args.input, args.output)
+    
 	if in_f == None or out_f == None:
 		sys.exit(-1)
 
@@ -1751,8 +1755,7 @@ def main():
 			logging.debug(fgt_sig)
 			__reset_flags()
 
-			if len(fgt_sig) > args.sig_max_len:
-				logging.error("Signature max length %s exceeded." % args.sig_max_len)
+			if not __len_check(fgt_sig, args.sig_max_len):
 				valid = False
 
 			if not valid:
@@ -1777,12 +1780,12 @@ def main():
 		output_json(out_f, fgt_rule_count, snort_count, args.all)
 
 	# Final print and cleanup.
-	print "\n%s:\nTotal %d from %d Snort rules are converted" \
-		  % (sys.argv[0], fgt_rule_count, snort_count)
+	print("\n%s:\nTotal %d from %d Snort rules are converted" \
+		  % (sys.argv[0], fgt_rule_count, snort_count))
 	if args.ignore_disabled:
-		print "(%s disabled)\n" % disabled_snort_count
+		print("(%s disabled)\n" % disabled_snort_count)
 	else:
-		print ''
+		print('')
 	in_f.close()
 	out_f.close()
 	json_stream.close()
