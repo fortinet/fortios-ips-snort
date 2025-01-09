@@ -142,6 +142,11 @@ Some test cases of sample Snort signatures and the equivalent valid IPS output a
 To run unit tests, use:
 `./test/test_snort2fortigate.py`
 
+### Tested Versions
+Python 3.10.12
+Python 3.5.10
+Python 3.4.10
+
 ### Support
 Fortinet-provided scripts in this and other GitHub projects do not fall under the regular Fortinet technical support scope and are not supported by FortiCare Support Services. For direct issues, please refer to the Issues tab of this GitHub project. For other questions related to this project, contact github@fortinet.com.
 

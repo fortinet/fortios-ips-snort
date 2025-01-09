@@ -1363,7 +1363,7 @@ def _handle_body(body):
 	while snort_body_m:
 		logging.debug("fixing escaped semicolon in pcre")
 		logging.debug(snort_body_m.group(1))
-		snort_body = pcre_semicolon_fix.sub(r'\1\x3b', snort_body, count=1)
+		snort_body = pcre_semicolon_fix.sub(r'\1\\x3b', snort_body, count=1) #modified from \x3b to \\x3b
 		snort_body_m = pcre_semicolon_fix.search(snort_body)
 	snort_body_m = content_semicolon_fix.search(snort_body)
 	while snort_body_m:

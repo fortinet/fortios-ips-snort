@@ -1,2 +1,7 @@
 F-SBID( --name "SID25866-BackdoorDNSBEACONCSBundle.DNS"; --protocol udp; --src_port 53; --pattern "|00 01 00 01|"; --distance 4,context; --within 4,context; --context packet; --pattern "|03|"; --within 15; --context packet; --pattern "|0a|_domainkey"; --distance 3; --within 11; --context packet; --pattern "|00 00 10 00 01 c0 0c 00 10 00 01 00 00 00 02 01 00 ff|v=DKIM1|3B| p="; --context packet; )
 
+F-SBID( --name "SID1212005-UDS-Dadong.Script.2012.12"; --protocol tcp; --flow from_client; --pcre "/\x27s JSXX 0\.44 VIP.*\/|\x27s\+JSXX\+0\.42\+VIP.*(%2F|\x2F)|\x27s JSXX 0\.42 VIP.*\/|document\.cookie=\x22dadong=Yes\x3bpath=\/\x3bexpires=\x22\+expires\.toGMTString\(\)\x3b/i"; )
+F-SBID( --name "SID01-semicolon.escape.test"; --protocol tcp; --flow from_client; --pcre "/test\x3bsemicolon\x22\/\x3bescaping\x3b/"; --context uri; --service http; )
+F-SBID( --name "SID01-semicolon.escape.test.content"; --protocol tcp; --flow from_client; --pattern "testing|3B|semicolon|3B|content|3B|"; --context uri; --service http; )
+F-SBID( --name "SID-UDS-Bash.Environment.Variables.Code.Injection"; --protocol tcp; --flow from_client; --pcre "/(\(\)\{ :\x3b\}\x3b|\(\)\{\\\(a\)=\x3e)/"; --context header; )
+F-SBID( --name "SID-UDS-Malware_User-Agent.ChilkatUpload.1306"; --protocol tcp; --flow from_client; --parsed_type HTTP_GET; --pcre "/^user-agent\x3a\x20[^\n]*ChilkatUpload\x22\x3b/mi"; --context header; --service http; )
